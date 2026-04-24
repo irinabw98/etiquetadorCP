@@ -16,7 +16,7 @@ const els = {
   changeBg: $('changeBg'), resetBg: $('resetBg'), bgInput: $('bgInput'), backgroundPreview: $('backgroundPreview'),
   uploadPhotosBtn: $('uploadPhotosBtn'), photoInput: $('photoInput'), autoAssignBtn: $('autoAssignBtn'), photoList: $('photoList'), photoCounter: $('photoCounter'),
   slideCount: $('slideCount'), assignedCount: $('assignedCount'), fileName: $('fileName'), backStep1: $('backStep1'), downloadPptx: $('downloadPptx'), groupPreview: $('groupPreview'),
-  assignHelp: $('assignHelp'), suggestionText: $('suggestionText')
+  assignHelp: $('assignHelp'), suggestionText: $('suggestionText'), dropZones: $('dropZones')
 };
 
 function parseMoments(raw) {
@@ -132,6 +132,52 @@ function validateStep1() {
 }
 
 function escapeHtml(value) { return String(value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+async function addPhotoFiles(files, moment) {
+  const cleanFiles = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+  if (!cleanFiles.length) return;
+  const next = await Promise.all(cleanFiles.map(async (file, index) => ({
+    id: Date.now() + '-' + Math.random().toString(16).slice(2) + '-' + index + '-' + file.name,
+    fileName: file.name,
+    dataUrl: await fileToDataUrl(file),
+    groupName: '',
+    momentName: moment && moment.name ? moment.name : '',
+    momentDate: moment && moment.date ? moment.date : ''
+  })));
+  state.photos.push(...next);
+  renderPhotoList();
+}
+
+function renderDropZones() {
+  if (!els.dropZones) return;
+  const moments = getMoments();
+  const isMultiple = els.momentMode.value === 'multiple';
+  const zones = isMultiple && moments.length ? moments : [{ name: els.momento.value.trim() || 'Momento único', date: els.fecha.value || '' }];
+  els.dropZones.innerHTML = zones.map((moment, index) => {
+    const count = isMultiple ? state.photos.filter((p) => p.momentName === moment.name).length : state.photos.length;
+    const title = isMultiple ? moment.name : 'Arrastrá fotos acá';
+    const sub = isMultiple ? ((moment.date ? moment.date + ' · ' : '') + count + ' foto(s) cargada(s)') : ('Para este momento · ' + count + ' foto(s) cargada(s)');
+    return '<div class="drop-zone" data-moment-index="' + index + '">' +
+      '<div class="drop-icon">＋</div>' +
+      '<div><strong>' + escapeHtml(title) + '</strong><span>' + escapeHtml(sub) + '</span></div>' +
+      '<small>Soltá imágenes acá</small>' +
+    '</div>';
+  }).join('');
+
+  els.dropZones.querySelectorAll('.drop-zone').forEach((zone) => {
+    const index = Number(zone.dataset.momentIndex || 0);
+    const moment = zones[index] || null;
+    ['dragenter', 'dragover'].forEach((evtName) => zone.addEventListener(evtName, (event) => {
+      event.preventDefault();
+      zone.classList.add('drag-over');
+    }));
+    ['dragleave', 'drop'].forEach((evtName) => zone.addEventListener(evtName, (event) => {
+      event.preventDefault();
+      if (evtName === 'drop') addPhotoFiles(event.dataTransfer.files, isMultiple ? moment : null);
+      zone.classList.remove('drag-over');
+    }));
+    zone.addEventListener('click', () => els.photoInput.click());
+  });
+}
 
 function updateMomentModeUI() {
   const isMultiple = els.momentMode.value === 'multiple';
@@ -141,10 +187,12 @@ function updateMomentModeUI() {
     ? 'Subí todas las fotos y elegí momento + tratamiento/parcela para cada una.'
     : 'Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.';
   refreshSuggestedFileName();
+  renderDropZones();
   renderPhotoList();
 }
 
 function renderPhotoList() {
+  renderDropZones();
   els.photoCounter.textContent = `${state.photos.length} foto${state.photos.length === 1 ? '' : 's'}`;
   if (!state.photos.length) { els.photoList.className = 'photo-list empty'; els.photoList.innerHTML = '<p>Todavía no cargaste fotos.</p>'; renderGroupPreview(); return; }
   const options = normalizeOptions(els.nombresGrupos.value);
@@ -218,7 +266,7 @@ els.changeBg.addEventListener('click', () => els.bgInput.click());
 els.resetBg.addEventListener('click', () => { state.backgroundSrc = DEFAULT_BACKGROUND_URL; els.backgroundPreview.src = DEFAULT_BACKGROUND_URL; });
 els.bgInput.addEventListener('change', async (event) => { const file = event.target.files?.[0]; if (!file) return; state.backgroundSrc = await fileToDataUrl(file); els.backgroundPreview.src = state.backgroundSrc; event.target.value = ''; });
 els.uploadPhotosBtn.addEventListener('click', () => els.photoInput.click());
-els.photoInput.addEventListener('change', async (event) => { const files = Array.from(event.target.files || []); const next = await Promise.all(files.map(async (file, index) => ({ id: `${Date.now()}-${index}-${file.name}`, fileName: file.name, dataUrl: await fileToDataUrl(file), groupName: '', momentName: '', momentDate: '' }))); state.photos.push(...next); event.target.value = ''; renderPhotoList(); });
+els.photoInput.addEventListener('change', async (event) => { await addPhotoFiles(event.target.files, null); event.target.value = ''; });
 els.photoList.addEventListener('input', handlePhotoField);
 els.photoList.addEventListener('change', handlePhotoField);
 function handlePhotoField(event) {
@@ -236,8 +284,9 @@ els.autoAssignBtn.addEventListener('click', () => {
   const moments = getMoments();
   const isMultiple = els.momentMode.value === 'multiple';
 
-  function assignBlocks(photoSubset, moment) {
+  function assignBlocks(photoSubset) {
     const total = photoSubset.length;
+    if (!total) return;
     const treatmentCount = options.length;
     const base = Math.floor(total / treatmentCount);
     const remainder = total % treatmentCount;
@@ -246,44 +295,38 @@ els.autoAssignBtn.addEventListener('click', () => {
     options.forEach((groupName, groupIndex) => {
       const blockSize = base + (groupIndex < remainder ? 1 : 0);
       for (let i = 0; i < blockSize && cursor < total; i++) {
-        const photo = photoSubset[cursor];
-        photo.groupName = groupName;
-        if (moment) {
-          photo.momentName = moment.name || '';
-          photo.momentDate = moment.date || '';
-        }
+        photoSubset[cursor].groupName = groupName;
         cursor++;
       }
     });
   }
 
-  if (isMultiple && moments.length > 1) {
-    const photosPerMomentBase = Math.floor(state.photos.length / moments.length);
-    const photosPerMomentRemainder = state.photos.length % moments.length;
-    let cursor = 0;
-
-    moments.forEach((moment, momentIndex) => {
-      const blockSize = photosPerMomentBase + (momentIndex < photosPerMomentRemainder ? 1 : 0);
-      const subset = state.photos.slice(cursor, cursor + blockSize);
-      assignBlocks(subset, moment);
-      cursor += blockSize;
+  if (isMultiple) {
+    moments.forEach((moment) => {
+      const subset = state.photos.filter((photo) => photo.momentName === moment.name);
+      assignBlocks(subset);
     });
+    const withoutMoment = state.photos.filter((photo) => !photo.momentName);
+    assignBlocks(withoutMoment);
   } else {
-    assignBlocks(state.photos, isMultiple ? moments[0] : null);
+    assignBlocks(state.photos);
   }
 
   renderPhotoList();
 });
-
 ['input', 'change'].forEach((evt) => { [els.protocolo, els.trial, els.momento, els.momentosLista].forEach((el) => el.addEventListener(evt, refreshSuggestedFileName)); });
 els.fileName.addEventListener('input', () => { state.fileNameTouched = true; });
 els.slidesPorGrupo.addEventListener('input', renderGroupPreview);
 els.nombresGrupos.addEventListener('change', renderPhotoList);
 els.identificacionModo.addEventListener('change', renderPhotoList);
 els.momentMode.addEventListener('change', updateMomentModeUI);
-els.momentosLista.addEventListener('change', renderPhotoList);
+els.momentosLista.addEventListener('change', () => { renderDropZones(); renderPhotoList(); });
+els.momentosLista.addEventListener('input', () => { renderDropZones(); renderPhotoList(); });
+els.momento.addEventListener('input', renderDropZones);
+els.fecha.addEventListener('change', renderDropZones);
 els.downloadPptx.addEventListener('click', generatePptx);
 
 updateMomentModeUI();
 refreshSuggestedFileName();
+renderDropZones();
 renderPhotoList();
