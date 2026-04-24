@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Etiquetador de Fotos</title>
+  <title>Etiquetador CP</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
       <div>
         <p class="eyebrow">Generador de PowerPoint</p>
         <h1>Etiquetador de fotos</h1>
-        <p class="subtitle">Cargá los datos del ensayo, asigná fotos por tratamiento o parcela y descargá un PPTX con una slide por grupo.</p>
+        <p class="subtitle">Si llegaste a esta página, quiero que sepas que es un desarrollo personal hecho con mucho aprendizaje. Espero que te sea útil. ¡Gracias!</p>
       </div>
       <div class="step-pill" id="stepPill">Paso 1 de 2</div>
     </header>
@@ -27,7 +27,7 @@
         <article class="card">
           <div class="card-head">
             <h2>Datos generales</h2>
-            <p>Esta información se escribirá en todas las slides.</p>
+            <p>Protocolo, trial y localidad son comunes. El momento y la fecha pueden ser únicos o múltiples.</p>
           </div>
 
           <div class="form-grid">
@@ -40,24 +40,42 @@
             <label>Localidad
               <input id="localidad" type="text" placeholder="Ej: Pergamino" />
             </label>
+            <label>¿Vas a cargar uno o más momentos?
+              <select id="momentMode">
+                <option value="single">Un solo momento</option>
+                <option value="multiple">Dos o más momentos</option>
+              </select>
+            </label>
+          </div>
+
+          <div id="singleMomentBox" class="form-grid moment-box">
             <label>Momento
               <input id="momento" type="text" placeholder="Ej: 14 DAA" />
             </label>
             <label>Fecha
               <input id="fecha" type="date" />
             </label>
+          </div>
+
+          <div id="multipleMomentBox" class="moment-box hidden">
+            <label class="wide-label">
+              Momentos a cargar
+              <textarea id="momentosLista" placeholder="Escribí un momento por línea. Podés sumar fecha con |&#10;Ej:&#10;A1 | 2026-04-20&#10;A2 | 2026-05-05&#10;A3 | 2026-05-18"></textarea>
+            </label>
+            <div class="hint-box compact">
+              Cuando cargues varios momentos, cada foto tendrá dos desplegables: momento y tratamiento/parcela.
+            </div>
+          </div>
+
+          <div class="form-grid bottom-grid">
             <label>Identificar fotos por
               <select id="identificacionModo">
                 <option value="tratamiento">Tratamiento</option>
                 <option value="parcela">Parcela</option>
               </select>
             </label>
-            <label>Fotos por tratamiento/parcela
-              <select id="fotosPorGrupo">
-                <option value="1">1 foto</option>
-                <option value="2">2 fotos</option>
-                <option value="3">3 fotos</option>
-              </select>
+            <label>Slides por tratamiento/parcela
+              <input id="slidesPorGrupo" type="number" min="1" max="20" value="1" />
             </label>
           </div>
 
@@ -65,6 +83,10 @@
             Nombres de tratamientos/parcelas
             <textarea id="nombresGrupos" placeholder="Escribí uno por línea o separados por coma.&#10;Ej:&#10;Testigo&#10;T1&#10;T2&#10;T3"></textarea>
           </label>
+
+          <div class="hint-box">
+            Por default se genera <strong>1 slide por tratamiento/parcela</strong>. Si elegís 2 slides y un tratamiento tiene 4 fotos, la app divide 2 fotos en la primera slide y 2 en la segunda.
+          </div>
 
           <div class="actions right">
             <button class="btn primary" id="goStep2" type="button">Continuar a fotos</button>
@@ -74,7 +96,7 @@
         <article class="card preview-card">
           <div class="card-head">
             <h2>Fondo de slide</h2>
-            <p>La app usa tu fondo por default, pero podés cambiarlo cuando quieras.</p>
+            <p>La app arranca con tu fondo por default, pero podés cambiarlo cuando quieras.</p>
           </div>
 
           <div class="background-actions">
@@ -85,15 +107,14 @@
 
           <div class="slide-preview">
             <img id="backgroundPreview" src="fondo-default.jpg" alt="Fondo por default" />
-            <div class="preview-photo-box">Espacio para fotos</div>
+            <div class="preview-photo-box">Espacio para fotos más grande</div>
             <div class="preview-label">
-              <strong>Tratamiento / Parcela</strong><br />
-              Protocolo · Trial · Localidad · Momento · Fecha
+              Protocolo · Trial · Localidad · Momento · Fecha · Tratamiento / Parcela
             </div>
           </div>
 
           <div class="info-box">
-            El fondo debe tener proporción 16:9 para que se vea igual en PowerPoint. El archivo incluido se llama <strong>fondo-default.jpg</strong>.
+            Para cambiar el fondo fijo del repo, reemplazá <strong>fondo-default.jpg</strong> por otra imagen 16:9 con el mismo nombre.
           </div>
         </article>
       </div>
@@ -105,14 +126,14 @@
           <div class="card-head row-head">
             <div>
               <h2>Carga y asignación de fotos</h2>
-              <p>Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.</p>
+              <p id="assignHelp">Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.</p>
             </div>
             <span class="counter" id="photoCounter">0 fotos</span>
           </div>
 
           <div class="actions wrap">
             <button class="btn primary" id="uploadPhotosBtn" type="button">Cargar fotos</button>
-            <button class="btn soft" id="autoAssignBtn" type="button">Autoasignar por bloques</button>
+            <button class="btn soft" id="autoAssignBtn" type="button">Autoasignar en orden</button>
             <input id="photoInput" class="hidden" type="file" accept="image/*" multiple />
           </div>
 
@@ -125,7 +146,7 @@
           <article class="card">
             <div class="card-head">
               <h2>Exportación</h2>
-              <p>Se generará una slide por cada tratamiento/parcela.</p>
+              <p id="suggestionText">El nombre sugerido será Protocolo-Trial-Momento.</p>
             </div>
 
             <div class="stats">
@@ -157,7 +178,7 @@
     </section>
   </main>
 
-  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="pptxgen.bundle.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

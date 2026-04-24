@@ -1,79 +1,75 @@
-# Etiquetador de Fotos para PowerPoint
+# Etiquetador CP
 
-Aplicación web simple para generar un PowerPoint con fotos etiquetadas por tratamiento o parcela.
+Aplicación web estática para etiquetar fotos de ensayos y generar un PowerPoint descargable usando un fondo institucional por default.
 
-## Qué hace
+## Archivos del repo
 
-- Usa una imagen de fondo por default (`fondo-default.jpg`).
-- Permite cambiar el fondo desde la interfaz.
-- Carga fotos en lote.
-- Permite asignar cada foto a un tratamiento o parcela.
-- Permite elegir 1, 2 o 3 fotos por tratamiento/parcela.
-- Genera un archivo `.pptx` descargable.
-- Crea una slide por cada tratamiento/parcela.
-
-## Archivos que debe tener el repositorio
-
-Subí estos archivos en la raíz del repo:
+Subí estos archivos a la raíz del repositorio:
 
 ```txt
 index.html
 styles.css
 app.js
+pptxgen.bundle.js
 fondo-default.jpg
 README.md
 ```
 
-No hace falta instalar Node, Vite ni React. Es una app estática.
+## Uso
 
-## Cómo publicarla en GitHub Pages
+1. Abrí la app publicada en GitHub Pages.
+2. Completá Protocolo, Trial y Localidad.
+3. Elegí si vas a cargar un solo momento o varios momentos.
+4. Si cargás varios momentos, escribilos uno por línea. Podés usar este formato:
 
-1. Crear un repositorio nuevo en GitHub.
-2. Subir todos los archivos de este proyecto a la raíz del repositorio.
-3. Ir a **Settings**.
-4. Entrar a **Pages**.
-5. En **Build and deployment**, elegir:
-   - Source: **Deploy from a branch**
-   - Branch: **main**
-   - Folder: **/root**
-6. Guardar.
-7. Esperar unos minutos.
-8. Abrir el link que te da GitHub Pages.
+```txt
+A1 | 2026-04-20
+A2 | 2026-05-05
+A3 | 2026-05-18
+```
 
-## Cómo cambiar el fondo default
+5. Cargá los tratamientos o parcelas.
+6. Elegí cuántas slides querés por tratamiento/parcela. Por default es 1.
+7. Subí las fotos.
+8. Asigná tratamiento/parcela y, si corresponde, momento.
+9. Descargá el PowerPoint.
 
-Reemplazá el archivo:
+## Lógica de slides
+
+- Si usás un solo momento, agrupa por tratamiento/parcela.
+- Si usás varios momentos, agrupa por momento + tratamiento/parcela.
+- Si elegís 2 slides y un tratamiento tiene 4 fotos, divide 2 fotos en cada slide.
+- Si elegís 3 slides y un tratamiento tiene 7 fotos, reparte las fotos lo más parejo posible.
+
+## Nombre sugerido del PowerPoint
+
+- Un solo momento: `Protocolo-Trial-Momento`
+- Varios momentos: `Protocolo-Trial`
+
+## Fondo por default
+
+El fondo fijo es:
 
 ```txt
 fondo-default.jpg
 ```
 
-por otra imagen con el mismo nombre.
+Para cambiarlo, reemplazá ese archivo por otra imagen 16:9 con el mismo nombre. Desde la app también podés cargar otro fondo para una exportación puntual.
 
-Recomendación: usar una imagen 16:9, por ejemplo 1366 x 768 px o 1920 x 1080 px.
+## GitHub Pages
 
-## Uso de la app
+En GitHub:
 
-1. Completar:
-   - Protocolo
-   - Trial
-   - Localidad
-   - Momento
-   - Fecha
-2. Elegir si se identifica por tratamiento o parcela.
-3. Elegir si cada grupo tendrá 1, 2 o 3 fotos.
-4. Cargar los nombres de tratamientos/parcelas.
-5. Pasar a la pantalla de fotos.
-6. Cargar las imágenes.
-7. Asignar cada imagen a un tratamiento/parcela.
-8. Descargar PowerPoint.
+1. Entrá al repositorio.
+2. Andá a **Settings > Pages**.
+3. En **Source**, elegí `Deploy from a branch`.
+4. Seleccioná la rama `main` y carpeta `/root`.
+5. Guardá.
 
-## Nota importante
 
-La generación del PowerPoint usa la librería `pptxgenjs` desde CDN:
 
-```html
-https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js
-```
+## Cambios v3
 
-Por eso, para generar el PowerPoint hace falta conexión a internet. La interfaz puede verse igual, pero la descarga del PPTX necesita que esa librería cargue correctamente.
+- El texto de la etiqueta inferior del PowerPoint queda centrado y con mayor tamaño, sin agrandar la banda.
+- El botón **Autoasignar por bloques** ahora toma las fotos en orden consecutivo por tratamiento/parcela. Ejemplo: si hay 3 tratamientos y 9 fotos, asigna fotos 1-3 al tratamiento 1, 4-6 al tratamiento 2 y 7-9 al tratamiento 3.
+- Si se trabaja con varios momentos, primero divide las fotos por momento en bloques consecutivos y dentro de cada momento reparte por tratamiento/parcela en bloques consecutivos.
