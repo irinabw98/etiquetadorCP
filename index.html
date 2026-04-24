@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Etiquetador de Fotos</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Generador de PowerPoint</p>
+        <h1>Etiquetador de fotos</h1>
+        <p class="subtitle">Cargá los datos del ensayo, asigná fotos por tratamiento o parcela y descargá un PPTX con una slide por grupo.</p>
+      </div>
+      <div class="step-pill" id="stepPill">Paso 1 de 2</div>
+    </header>
+
+    <section class="progress-wrap">
+      <button class="progress-tab active" id="tabStep1" type="button">1. Configuración</button>
+      <button class="progress-tab" id="tabStep2" type="button">2. Fotos y exportación</button>
+    </section>
+
+    <section id="step1" class="screen active">
+      <div class="grid two-cols">
+        <article class="card">
+          <div class="card-head">
+            <h2>Datos generales</h2>
+            <p>Esta información se escribirá en todas las slides.</p>
+          </div>
+
+          <div class="form-grid">
+            <label>Protocolo
+              <input id="protocolo" type="text" placeholder="Ej: SP26ARGB02" />
+            </label>
+            <label>Trial
+              <input id="trial" type="text" placeholder="Ej: TRIAL 01" />
+            </label>
+            <label>Localidad
+              <input id="localidad" type="text" placeholder="Ej: Pergamino" />
+            </label>
+            <label>Momento
+              <input id="momento" type="text" placeholder="Ej: 14 DAA" />
+            </label>
+            <label>Fecha
+              <input id="fecha" type="date" />
+            </label>
+            <label>Identificar fotos por
+              <select id="identificacionModo">
+                <option value="tratamiento">Tratamiento</option>
+                <option value="parcela">Parcela</option>
+              </select>
+            </label>
+            <label>Fotos por tratamiento/parcela
+              <select id="fotosPorGrupo">
+                <option value="1">1 foto</option>
+                <option value="2">2 fotos</option>
+                <option value="3">3 fotos</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="wide-label">
+            Nombres de tratamientos/parcelas
+            <textarea id="nombresGrupos" placeholder="Escribí uno por línea o separados por coma.&#10;Ej:&#10;Testigo&#10;T1&#10;T2&#10;T3"></textarea>
+          </label>
+
+          <div class="actions right">
+            <button class="btn primary" id="goStep2" type="button">Continuar a fotos</button>
+          </div>
+        </article>
+
+        <article class="card preview-card">
+          <div class="card-head">
+            <h2>Fondo de slide</h2>
+            <p>La app usa tu fondo por default, pero podés cambiarlo cuando quieras.</p>
+          </div>
+
+          <div class="background-actions">
+            <button class="btn ghost" id="changeBg" type="button">Cambiar fondo</button>
+            <button class="btn soft" id="resetBg" type="button">Usar fondo por default</button>
+            <input id="bgInput" class="hidden" type="file" accept="image/*" />
+          </div>
+
+          <div class="slide-preview">
+            <img id="backgroundPreview" src="fondo-default.jpg" alt="Fondo por default" />
+            <div class="preview-photo-box">Espacio para fotos</div>
+            <div class="preview-label">
+              <strong>Tratamiento / Parcela</strong><br />
+              Protocolo · Trial · Localidad · Momento · Fecha
+            </div>
+          </div>
+
+          <div class="info-box">
+            El fondo debe tener proporción 16:9 para que se vea igual en PowerPoint. El archivo incluido se llama <strong>fondo-default.jpg</strong>.
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="step2" class="screen">
+      <div class="grid two-cols photos-layout">
+        <article class="card">
+          <div class="card-head row-head">
+            <div>
+              <h2>Carga y asignación de fotos</h2>
+              <p>Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.</p>
+            </div>
+            <span class="counter" id="photoCounter">0 fotos</span>
+          </div>
+
+          <div class="actions wrap">
+            <button class="btn primary" id="uploadPhotosBtn" type="button">Cargar fotos</button>
+            <button class="btn soft" id="autoAssignBtn" type="button">Autoasignar por bloques</button>
+            <input id="photoInput" class="hidden" type="file" accept="image/*" multiple />
+          </div>
+
+          <div id="photoList" class="photo-list empty">
+            <p>Todavía no cargaste fotos.</p>
+          </div>
+        </article>
+
+        <aside class="side-stack">
+          <article class="card">
+            <div class="card-head">
+              <h2>Exportación</h2>
+              <p>Se generará una slide por cada tratamiento/parcela.</p>
+            </div>
+
+            <div class="stats">
+              <div><span id="slideCount">0</span><small>slides</small></div>
+              <div><span id="assignedCount">0</span><small>asignadas</small></div>
+            </div>
+
+            <label>Nombre del archivo
+              <input id="fileName" type="text" value="Etiquetado_Fotos" />
+            </label>
+
+            <div class="actions wrap">
+              <button class="btn ghost" id="backStep1" type="button">Volver</button>
+              <button class="btn primary" id="downloadPptx" type="button">Descargar PowerPoint</button>
+            </div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <h2>Vista previa de grupos</h2>
+              <p>Control rápido antes de exportar.</p>
+            </div>
+            <div id="groupPreview" class="group-preview empty">
+              <p>No hay grupos todavía.</p>
+            </div>
+          </article>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
