@@ -3,6 +3,7 @@ const DEFAULT_BACKGROUND_URL = 'fondo-default.jpg';
 const state = {
   step: 1,
   backgroundSrc: DEFAULT_BACKGROUND_URL,
+  exportMode: 'with-bg',
   photos: [],
   fileNameTouched: false
 };
@@ -16,7 +17,7 @@ const els = {
   changeBg: $('changeBg'), resetBg: $('resetBg'), bgInput: $('bgInput'), backgroundPreview: $('backgroundPreview'),
   uploadPhotosBtn: $('uploadPhotosBtn'), photoInput: $('photoInput'), autoAssignBtn: $('autoAssignBtn'), photoList: $('photoList'), photoCounter: $('photoCounter'),
   slideCount: $('slideCount'), assignedCount: $('assignedCount'), fileName: $('fileName'), backStep1: $('backStep1'), downloadPptx: $('downloadPptx'), groupPreview: $('groupPreview'),
-  assignHelp: $('assignHelp'), suggestionText: $('suggestionText'), dropZones: $('dropZones')
+  assignHelp: $('assignHelp'), suggestionText: $('suggestionText'), dropZones: $('dropZones'), exportMode: $('exportMode')
 };
 
 function parseMoments(raw) {
@@ -43,7 +44,8 @@ function meta() {
     moments,
     identificacionModo: els.identificacionModo.value,
     slidesPorGrupo: Math.max(1, Number(els.slidesPorGrupo.value || 1)),
-    nombresGruposRaw: els.nombresGrupos.value
+    nombresGruposRaw: els.nombresGrupos.value,
+    exportMode: els.exportMode ? els.exportMode.value : state.exportMode
   };
 }
 
@@ -70,6 +72,20 @@ function refreshSuggestedFileName() {
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
+}
+function isHeicFile(file) {
+  const name = (file?.name || '').toLowerCase();
+  const type = (file?.type || '').toLowerCase();
+  return name.endsWith('.heic') || name.endsWith('.heif') || type.includes('heic') || type.includes('heif');
+}
+async function normalizeImageFile(file) {
+  if (!isHeicFile(file)) return fileToDataUrl(file);
+  if (typeof window.heic2any !== 'function') {
+    throw new Error('HEIC_LIB_MISSING');
+  }
+  const convertedBlob = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
+  const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+  return fileToDataUrl(blob);
 }
 async function urlToDataUrl(url) { if (url.startsWith('data:')) return url; const response = await fetch(url); const blob = await response.blob(); return fileToDataUrl(blob); }
 function getImageSize(dataUrl) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve({ width: img.width, height: img.height }); img.onerror = reject; img.src = dataUrl; }); }
@@ -100,8 +116,8 @@ function splitEvenly(items, parts) {
 function getSlideChunksForGroup(group) { return splitEvenly(group.photos, meta().slidesPorGrupo); }
 function countTotalSlides() { return groupPhotos().reduce((acc, group) => acc + getSlideChunksForGroup(group).length, 0); }
 
-function dynamicPhotoLayout(count) {
-  const area = { x: 0.72, y: 1.18, w: 11.88, h: 5.18 };
+function dynamicPhotoLayout(count, noBackground = false) {
+  const area = noBackground ? { x: 0.42, y: 0.42, w: 12.5, h: 6.65 } : { x: 0.72, y: 1.18, w: 11.88, h: 5.18 };
   const gap = 0.13;
   if (count <= 1) return [{ x: area.x, y: area.y, w: area.w, h: area.h }];
   const cols = count === 2 ? 2 : count <= 4 ? 2 : 3;
@@ -133,16 +149,35 @@ function validateStep1() {
 
 function escapeHtml(value) { return String(value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 async function addPhotoFiles(files, moment) {
-  const cleanFiles = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+  const cleanFiles = Array.from(files || []).filter((file) => {
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    return type.startsWith('image/') || name.endsWith('.heic') || name.endsWith('.heif');
+  });
   if (!cleanFiles.length) return;
-  const next = await Promise.all(cleanFiles.map(async (file, index) => ({
-    id: Date.now() + '-' + Math.random().toString(16).slice(2) + '-' + index + '-' + file.name,
-    fileName: file.name,
-    dataUrl: await fileToDataUrl(file),
-    groupName: '',
-    momentName: moment && moment.name ? moment.name : '',
-    momentDate: moment && moment.date ? moment.date : ''
-  })));
+
+  const next = [];
+  const heicErrors = [];
+  for (let index = 0; index < cleanFiles.length; index++) {
+    const file = cleanFiles[index];
+    try {
+      next.push({
+        id: Date.now() + '-' + Math.random().toString(16).slice(2) + '-' + index + '-' + file.name,
+        fileName: file.name,
+        dataUrl: await normalizeImageFile(file),
+        groupName: '',
+        momentName: moment && moment.name ? moment.name : '',
+        momentDate: moment && moment.date ? moment.date : ''
+      });
+    } catch (error) {
+      if (isHeicFile(file)) heicErrors.push(file.name);
+      else console.error(error);
+    }
+  }
+
+  if (heicErrors.length) {
+    alert('Algunas fotos HEIC/HEIF de iPhone no pudieron convertirse. Revisá tu conexión para cargar la librería HEIC o cambiá el iPhone a Cámara > Formatos > Más compatible. Archivos: ' + heicErrors.join(', '));
+  }
   state.photos.push(...next);
   renderPhotoList();
 }
@@ -237,22 +272,35 @@ async function generatePptx() {
   if (typeof PptxCtor === 'undefined') { alert('No se pudo encontrar la librería local pptxgen.bundle.js. Revisá que ese archivo esté subido en la raíz del repo junto con index.html.'); return; }
   const m = meta(); const groups = groupPhotos();
   const pptx = new PptxCtor(); pptx.layout = 'LAYOUT_WIDE'; pptx.author = 'Etiquetador de fotos'; pptx.subject = 'Fotos etiquetadas'; pptx.title = els.fileName.value.trim() || suggestedFileName(); pptx.lang = 'es-AR'; pptx.theme = { headFontFace: 'Aptos Display', bodyFontFace: 'Aptos', lang: 'es-AR' };
-  const backgroundData = await urlToDataUrl(state.backgroundSrc);
+  const noBackground = m.exportMode === 'no-bg';
+  const backgroundData = noBackground ? null : await urlToDataUrl(state.backgroundSrc);
   for (const group of groups) {
     const chunks = getSlideChunksForGroup(group);
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex]; const slide = pptx.addSlide();
-      slide.addImage({ data: backgroundData, x: 0, y: 0, w: 13.333, h: 7.5 });
-      slide.addText(group.groupName || 'Sin asignar', { x: 0.74, y: 0.82, w: 6.6, h: 0.35, fontFace: 'Aptos Display', fontSize: 17, bold: true, color: '4B2385', margin: 0, fit: 'shrink' });
-      if (m.momentMode === 'multiple') slide.addText(group.momentName || '', { x: 0.74, y: 1.05, w: 6.6, h: 0.22, fontFace: 'Aptos', fontSize: 10, bold: true, color: '6D36B5', margin: 0, fit: 'shrink' });
-      const layout = dynamicPhotoLayout(chunk.length);
+      if (!noBackground) {
+        slide.addImage({ data: backgroundData, x: 0, y: 0, w: 13.333, h: 7.5 });
+      } else {
+        slide.background = { color: 'FFFFFF' };
+      }
+      if (!noBackground) slide.addText(group.groupName || 'Sin asignar', { x: 0.74, y: 0.82, w: 6.6, h: 0.35, fontFace: 'Aptos Display', fontSize: 17, bold: true, color: '4B2385', margin: 0, fit: 'shrink' });
+      if (!noBackground && m.momentMode === 'multiple') slide.addText(group.momentName || '', { x: 0.74, y: 1.05, w: 6.6, h: 0.22, fontFace: 'Aptos', fontSize: 10, bold: true, color: '6D36B5', margin: 0, fit: 'shrink' });
+      const layout = dynamicPhotoLayout(chunk.length, noBackground);
       for (let i = 0; i < chunk.length; i++) {
         const photo = chunk[i], box = layout[i], size = await getImageSize(photo.dataUrl), fitted = fitContain(size.width, size.height, box.w, box.h);
         slide.addShape(pptx.ShapeType.roundRect, { x: box.x, y: box.y, w: box.w, h: box.h, rectRadius: 0.08, line: { color: 'D8CCE9', pt: 1.05 }, fill: { color: 'FFFFFF', transparency: 0 }, shadow: { type: 'outer', color: '6D36B5', opacity: 0.11, blur: 1, angle: 45, distance: 1 } });
         slide.addImage({ data: photo.dataUrl, x: box.x + fitted.xOffset, y: box.y + fitted.yOffset, w: fitted.w, h: fitted.h });
+        if (noBackground) {
+          const labelText = buildLegend(m, group, chunkIndex + 1, chunks.length);
+          const labelH = Math.min(0.38, Math.max(0.24, fitted.h * 0.12));
+          slide.addShape(pptx.ShapeType.roundRect, { x: box.x + fitted.xOffset + 0.08, y: box.y + fitted.yOffset + fitted.h - labelH - 0.08, w: Math.max(0.8, fitted.w - 0.16), h: labelH, rectRadius: 0.04, line: { color: 'D8CCE9', pt: 0.45, transparency: 10 }, fill: { color: 'FFFFFF', transparency: 8 } });
+          slide.addText(labelText, { x: box.x + fitted.xOffset + 0.16, y: box.y + fitted.yOffset + fitted.h - labelH + 0.005, w: Math.max(0.6, fitted.w - 0.32), h: labelH - 0.02, fontFace: 'Aptos', fontSize: 7.7, color: '24113F', bold: true, margin: 0, align: 'center', valign: 'mid', fit: 'shrink' });
+        }
       }
-      slide.addShape(pptx.ShapeType.roundRect, { x: 1.18, y: 6.67, w: 11.18, h: 0.34, rectRadius: 0.05, line: { color: 'D8CCE9', pt: 0.7 }, fill: { color: 'FFFFFF', transparency: 4 } });
-      slide.addText(buildLegend(m, group, chunkIndex + 1, chunks.length), { x: 1.34, y: 6.725, w: 10.86, h: 0.22, fontFace: 'Aptos', fontSize: 9.4, color: '24113F', bold: true, margin: 0, align: 'center', valign: 'mid', fit: 'shrink' });
+      if (!noBackground) {
+        slide.addShape(pptx.ShapeType.roundRect, { x: 1.18, y: 6.67, w: 11.18, h: 0.34, rectRadius: 0.05, line: { color: 'D8CCE9', pt: 0.7 }, fill: { color: 'FFFFFF', transparency: 4 } });
+        slide.addText(buildLegend(m, group, chunkIndex + 1, chunks.length), { x: 1.34, y: 6.725, w: 10.86, h: 0.22, fontFace: 'Aptos', fontSize: 9.4, color: '24113F', bold: true, margin: 0, align: 'center', valign: 'mid', fit: 'shrink' });
+      }
     }
   }
   const safeName = sanitizeFileName(els.fileName.value.trim() || suggestedFileName()); await pptx.writeFile({ fileName: `${safeName}.pptx` });

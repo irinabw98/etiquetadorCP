@@ -1,8 +1,10 @@
 # Etiquetador CP
 
-Aplicación web estática para etiquetar fotos y generar un PowerPoint descargable con fondo institucional.
+Aplicación web estática para etiquetar fotos y generar un PowerPoint descargable.
 
-## Archivos que deben estar en la raíz del repo
+## Archivos del repo
+
+Subir todos estos archivos a la raíz del repositorio:
 
 - `index.html`
 - `styles.css`
@@ -11,31 +13,34 @@ Aplicación web estática para etiquetar fotos y generar un PowerPoint descargab
 - `fondo-default.jpg`
 - `README.md`
 
-## Cómo usar
+## Funciones principales
 
-1. Completá Protocolo, Trial y Localidad.
-2. Elegí si vas a trabajar con un solo momento o con varios momentos.
-   - Para varios momentos, escribí un momento por línea.
-   - Podés agregar fecha usando este formato: `Momento | 2026-04-20`.
-3. Cargá los tratamientos o parcelas, uno por línea o separados por coma.
-4. Indicá cuántas slides querés por tratamiento/parcela.
-5. En la pantalla de fotos, arrastrá las imágenes a la caja correspondiente.
-   - Si hay varios momentos, aparece una caja por cada momento.
-   - Al soltar fotos en una caja, quedan asociadas automáticamente a ese momento.
-6. Usá **Autoasignar tratamientos** para repartir las fotos en bloques consecutivos.
-   - Ejemplo: 3 tratamientos y 9 fotos en un momento → fotos 1-3 Tratamiento 1, 4-6 Tratamiento 2, 7-9 Tratamiento 3.
-7. Descargá el PowerPoint.
+- Fondo institucional por default.
+- Opción para cambiar el fondo.
+- Opción **sin fondo**, donde la etiqueta se coloca sobre cada foto.
+- Carga manual o por arrastrar y soltar.
+- Carga de un momento o varios momentos.
+- Cajas de carga separadas por momento.
+- Autoasignación de tratamientos por bloques consecutivos.
+- Exportación a PowerPoint `.pptx`.
+- Compatibilidad con fotos comunes de iPhone en JPG/PNG.
+- Soporte para HEIC/HEIF mediante la librería `heic2any` cargada desde CDN.
 
-## Publicar en GitHub Pages
+## Importante sobre fotos de iPhone
 
-1. Subí todos los archivos a la raíz del repositorio.
-2. Entrá a **Settings > Pages**.
-3. En **Build and deployment**, elegí:
-   - Source: `Deploy from a branch`
-   - Branch: `main`
-   - Folder: `/root`
-4. Guardá y esperá a que GitHub publique la página.
+Si las fotos del iPhone están en formato `.HEIC`, la app intenta convertirlas a JPG en el navegador. Para eso necesita conexión a internet porque usa `heic2any` desde CDN.
 
-## Cambiar el fondo default
+Si alguna foto HEIC no carga, la alternativa más estable es configurar el iPhone en:
 
-Reemplazá `fondo-default.jpg` por otra imagen con el mismo nombre. Recomendado: formato 16:9.
+**Ajustes > Cámara > Formatos > Más compatible**
+
+Así las nuevas fotos se guardan como JPG y la app las toma sin conversión.
+
+## Publicación en GitHub Pages
+
+1. Crear o abrir el repositorio.
+2. Subir todos los archivos a la raíz.
+3. Ir a **Settings > Pages**.
+4. En **Branch**, elegir `main` y carpeta `/root`.
+5. Guardar.
+6. Abrir la URL publicada por GitHub Pages.

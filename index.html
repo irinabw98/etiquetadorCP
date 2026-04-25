@@ -102,7 +102,7 @@
           <div class="background-actions">
             <button class="btn ghost" id="changeBg" type="button">Cambiar fondo</button>
             <button class="btn soft" id="resetBg" type="button">Usar fondo por default</button>
-            <input id="bgInput" class="hidden" type="file" accept="image/*" />
+            <input id="bgInput" class="hidden" type="file" accept="image/*,.heic,.heif" />
           </div>
 
           <div class="slide-preview">
@@ -113,8 +113,16 @@
             </div>
           </div>
 
+          <label class="wide-label export-mode-label">
+            Modo de salida
+            <select id="exportMode">
+              <option value="with-bg">Con fondo institucional</option>
+              <option value="no-bg">Sin fondo: etiqueta sobre cada foto</option>
+            </select>
+          </label>
+
           <div class="info-box">
-            Para cambiar el fondo fijo del repo, reemplazá <strong>fondo-default.jpg</strong> por otra imagen 16:9 con el mismo nombre.
+            Para cambiar el fondo fijo del repo, reemplazá <strong>fondo-default.jpg</strong> por otra imagen 16:9 con el mismo nombre. La opción sin fondo genera las fotos más grandes y pone la etiqueta encima de cada foto.
           </div>
         </article>
       </div>
@@ -136,7 +144,7 @@
           <div class="actions wrap">
             <button class="btn primary" id="uploadPhotosBtn" type="button">Cargar fotos manualmente</button>
             <button class="btn soft" id="autoAssignBtn" type="button">Autoasignar tratamientos</button>
-            <input id="photoInput" class="hidden" type="file" accept="image/*" multiple />
+            <input id="photoInput" class="hidden" type="file" accept="image/*,.heic,.heif" multiple />
           </div>
 
           <div id="photoList" class="photo-list empty">
@@ -181,6 +189,7 @@
   </main>
 
   <script src="pptxgen.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
