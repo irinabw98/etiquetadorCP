@@ -94,3 +94,12 @@ Así las nuevas fotos se guardan como JPG.
 - Las fotos descargadas tienen etiqueta técnica fina en la parte inferior.
 - Los nombres de las fotos ya no llevan numeración inicial.
 - El nombre sugerido del archivo usa `protocolo_trial_localidad_momento`; si hay más de un momento, usa `protocolo_trial_localidad_momentos`.
+
+
+## Cambios de la versión v4
+
+- El PowerPoint mantiene una sola carátula inicial.
+- Cada sector tiene una visión/portada simple.
+- Se eliminaron las subcarátulas por momento y por tratamiento.
+- En las slides, el nombre de tratamiento o momento aparece debajo de cada foto, no arriba.
+- Se corrigió el nombre automático del archivo: `protocolo_trial_localidad_momento` o `protocolo_trial_localidad_momentos`.

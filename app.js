@@ -7,7 +7,8 @@ const state = {
   step: 1,
   backgroundSrc: DEFAULT_BACKGROUND_URL,
   photos: [],
-  hydrated: false
+  hydrated: false,
+  lastSuggestedFileName: ""
 };
 
 const $ = (id) => document.getElementById(id);
@@ -93,7 +94,8 @@ function debounce(fn, wait=350){
 
 function parseLines(raw){
   return String(raw || "")
-    .split(/\r?\n/)
+    .split(/?
+/)
     .map(v => v.trim())
     .filter(Boolean);
 }
@@ -134,10 +136,21 @@ function sanitizeFileName(value){
 function escapeHtml(value){
   return String(value || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
-function todayName(){
-  const m = getMeta();
-  return sanitizeFileName([m.protocolo,m.trial,m.localidad].filter(Boolean).join("_") || els.fileName.value || "Etiquetador_Fotos");
+function buildDefaultFileName(){
+  const meta = getMeta();
+  const momentPart = meta.moments.length === 1 ? meta.moments[0].name : "momentos";
+  return sanitizeFileName([meta.protocolo, meta.trial, meta.localidad, momentPart].filter(Boolean).join("_"));
 }
+function refreshFileNameDefault(force = false){
+  const suggested = buildDefaultFileName();
+  const current = els.fileName.value;
+  if(force || !current || current === "Etiquetador_Fotos" || current.startsWith("Etiquetador_") || current === state.lastSuggestedFileName){
+    els.fileName.value = suggested || "Etiquetador_Fotos";
+    state.lastSuggestedFileName = els.fileName.value;
+  }
+}
+
+
 
 function setStep(step){
   state.step = step;
@@ -434,7 +447,7 @@ function estimatePptSlides(){
   return slides;
 }
 function renderAll(){
-  refreshFileNameDefault();
+  refreshFileNameDefault(false);
   renderDropZones();
   renderStats();
   renderAssignmentPreview();
@@ -561,32 +574,53 @@ function refreshFileNameDefault(){
 
 function addCover(slide, meta, title, subtitle){
   addBackground(slide, meta);
-  slide.addShape("rect",{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"DCE7EF"}});
-  slide.addText(title,{x:1.05,y:2.15,w:11.1,h:.65,fontFace:"Arial",fontSize:30,bold:true,color:"063B68",align:"center"});
-  slide.addText(subtitle,{x:1.25,y:2.95,w:10.7,h:.6,fontFace:"Arial",fontSize:16,bold:true,color:"102033",align:"center",fit:"shrink"});
-  slide.addText(`Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}`,{x:1.25,y:3.75,w:10.7,h:.45,fontSize:12,color:"66788A",align:"center",fit:"shrink"});
+  slide.addShape("rect",{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"E7DEF5"}});
+  slide.addText(title,{x:1.05,y:2.15,w:11.1,h:.65,fontFace:"Arial",fontSize:30,bold:true,color:"35185E",align:"center"});
+  slide.addText(subtitle,{x:1.25,y:2.95,w:10.7,h:.6,fontFace:"Arial",fontSize:16,bold:true,color:"17072C",align:"center",fit:"shrink"});
+  slide.addText(`Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}`,{x:1.25,y:3.75,w:10.7,h:.45,fontSize:12,color:"6F6680",align:"center",fit:"shrink"});
+}
+function addSectorVision(slide, meta, title, subtitle){
+  addBackground(slide, meta);
+  slide.addShape("rect",{x:.85,y:1.65,w:11.65,h:3.65,fill:{color:"FFFFFF",transparency:5},line:{color:"E7DEF5"}});
+  slide.addText(title,{x:1.15,y:2.25,w:11.05,h:.7,fontFace:"Arial",fontSize:28,bold:true,color:"35185E",align:"center"});
+  slide.addText(subtitle,{x:1.35,y:3.12,w:10.65,h:.55,fontFace:"Arial",fontSize:16,bold:true,color:"17072C",align:"center",fit:"shrink"});
 }
 function addBackground(slide, meta){
   if(meta.pptBackgroundSrc) slide.addImage({data:meta.pptBackgroundSrc,x:0,y:0,w:13.333,h:7.5});
+  else if(meta.backgroundSrc) slide.addImage({data:meta.backgroundSrc,x:0,y:0,w:13.333,h:7.5});
   else slide.background = { color:"FFFFFF" };
 }
 function addFooter(slide, text){
-  slide.addShape("rect",{x:.55,y:6.88,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"DCE7EF"}});
-  slide.addText(text,{x:.72,y:6.98,w:11.9,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"063B68",align:"center",fit:"shrink"});
+  slide.addShape("rect",{x:.55,y:6.90,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"E7DEF5"}});
+  slide.addText(text,{x:.72,y:6.995,w:11.9,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"35185E",align:"center",fit:"shrink"});
 }
-function addPhotoRow(slide, photos, topLabels, footerText, meta){
+function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   addBackground(slide, meta);
   const n = photos.length;
-  const area = {x:.55,y:1.25,w:12.25,h:5.25};
+  const area = {x:.55,y:1.18,w:12.25,h:5.08};
+  const labelH = .34;
   const gap = .17;
   const cellW = (area.w - gap*(n-1))/n;
-  const cellH = area.h;
+  const imgH = area.h - labelH - .08;
   photos.forEach((photo, i)=>{
     const x = area.x + i*(cellW+gap);
-    slide.addText(topLabels[i] || "",{x,y:.82,w:cellW,h:.28,fontFace:"Arial",fontSize:11,bold:true,color:"063B68",align:"center",fit:"shrink"});
-    const fit = fitContain(photo.width, photo.height, cellW, cellH);
-    slide.addShape("rect",{x,y:area.y,w:cellW,h:cellH,fill:{color:"FFFFFF",transparency:0},line:{color:"DCE7EF"}});
+    const fit = fitContain(photo.width, photo.height, cellW, imgH);
+    slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
     slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h});
+
+    slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
+    slide.addText(bottomLabels[i] || "",{
+      x:x+.04,
+      y:area.y+imgH+.145,
+      w:cellW-.08,
+      h:.12,
+      fontFace:"Arial",
+      fontSize:8.6,
+      bold:true,
+      color:"35185E",
+      align:"center",
+      fit:"shrink"
+    });
   });
   addFooter(slide, footerText);
 }
@@ -601,18 +635,23 @@ async function createPptBlob(){
   pptx.author = "Etiquetador de fotos";
   pptx.subject = "Fotos etiquetadas";
   pptx.title = `${meta.protocolo} ${meta.trial}`;
-  pptx.company = "Product Team";
+  pptx.company = "";
+  pptx.theme = {
+    headFontFace: "Arial",
+    bodyFontFace: "Arial",
+    lang: "es-AR"
+  };
 
   let slide = pptx.addSlide();
   addCover(slide, meta, "Resultados", `${meta.protocolo} · ${meta.trial} · ${meta.localidad}`);
 
   slide = pptx.addSlide();
-  addCover(slide, meta, "Sector 1", "Fotos ordenadas por momento");
+  addSectorVision(slide, meta, "Sector 1", "Fotos ordenadas por momento");
 
   for(const moment of meta.moments){
-    slide = pptx.addSlide();
-    addCover(slide, meta, moment.name, `Fecha: ${moment.date || "Sin fecha"}`);
-    const photosMoment = state.photos.filter(p => p.momentId === moment.id && p.treatmentId);
+    const photosMoment = state.photos
+      .filter(p => p.momentId === moment.id && p.treatmentId)
+      .sort((a,b)=>a.order-b.order);
     const byTreat = meta.treatments.flatMap(t => photosMoment.filter(p => p.treatmentId === t.id));
     for(const group of chunk(byTreat, meta.photosPerSlide)){
       slide = pptx.addSlide();
@@ -623,12 +662,12 @@ async function createPptBlob(){
   }
 
   slide = pptx.addSlide();
-  addCover(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
+  addSectorVision(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
 
   for(const treatment of meta.treatments){
-    slide = pptx.addSlide();
-    addCover(slide, meta, treatment.name, "Tratamiento");
-    const photosTreat = state.photos.filter(p => p.treatmentId === treatment.id);
+    const photosTreat = state.photos
+      .filter(p => p.treatmentId === treatment.id)
+      .sort((a,b)=>a.order-b.order);
     const byMoment = meta.moments.flatMap(m => photosTreat.filter(p => p.momentId === m.id));
     for(const group of chunk(byMoment, meta.photosPerSlide)){
       slide = pptx.addSlide();
@@ -656,14 +695,14 @@ async function downloadPhotos(){
   setStatus("Generando ZIP de fotos...");
   const zip = await createPhotosZip();
   const blob = await zip.generateAsync({type:"blob"});
-  downloadBlob(blob, sanitizeFileName(els.fileName.value || todayName()) + "_fotos.zip");
+  downloadBlob(blob, sanitizeFileName(els.fileName.value || buildDefaultFileName()) + "_fotos.zip");
   setStatus("ZIP de fotos descargado.");
 }
 async function downloadPpt(){
   if(!state.photos.length){ alert("Primero cargá fotos."); return; }
   setStatus("Generando PowerPoint...");
   const blob = await createPptBlob();
-  downloadBlob(blob, sanitizeFileName(els.fileName.value || todayName()) + ".pptx");
+  downloadBlob(blob, sanitizeFileName(els.fileName.value || buildDefaultFileName()) + ".pptx");
   setStatus("PowerPoint descargado.");
 }
 async function downloadAll(){
@@ -673,7 +712,7 @@ async function downloadAll(){
   const photosZip = await createPhotosZip();
   const photosBlob = await photosZip.generateAsync({type:"blob"});
   const pptBlob = await createPptBlob();
-  const base = sanitizeFileName(els.fileName.value || todayName());
+  const base = sanitizeFileName(els.fileName.value || buildDefaultFileName());
   zip.file(base + "_fotos.zip", photosBlob);
   zip.file(base + ".pptx", pptBlob);
   const finalBlob = await zip.generateAsync({type:"blob"});
