@@ -3,36 +3,76 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Etiquetador CP</title>
+  <title>Etiquetador de fotos</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <main class="app-shell">
     <header class="hero">
-      <div>
-        <p class="eyebrow">Generador de PowerPoint</p>
-        <h1>Etiquetador de fotos</h1>
-        <p class="subtitle">Si llegaste a esta página, quiero que sepas que es un desarrollo personal hecho con mucho aprendizaje. Espero que te sea útil. ¡Gracias!</p>
+      <div class="brand">
+        <div class="brand-mark">Ph4</div>
+        <div>
+          <p class="eyebrow">Product Team · Generador de resultados</p>
+          <h1>Etiquetador de fotos</h1>
+          <p class="subtitle">Carga fotos por momento, asigna tratamientos, genera imágenes etiquetadas y un PowerPoint con dos sectores: ordenado por momento y ordenado por tratamiento.</p>
+        </div>
       </div>
-      <div class="step-pill" id="stepPill">Paso 1 de 2</div>
+      <div class="hero-actions">
+        <button class="btn light" id="btnStart" type="button">Comenzar</button>
+        <button class="btn ghost-light" id="btnClearProject" type="button">Limpiar proyecto</button>
+      </div>
     </header>
 
-    <section class="progress-wrap">
-      <button class="progress-tab active" id="tabStep1" type="button">1. Configuración</button>
-      <button class="progress-tab" id="tabStep2" type="button">2. Fotos y exportación</button>
+    <section class="instructions card" id="instructions">
+      <div class="section-head">
+        <div>
+          <p class="kicker">Instrucciones de uso</p>
+          <h2>Cómo usar la herramienta</h2>
+        </div>
+      </div>
+      <div class="steps-grid">
+        <article>
+          <span>1</span>
+          <h3>Completá los datos</h3>
+          <p>Ingresá protocolo, trial, localidad, tratamientos, momentos y fechas.</p>
+        </article>
+        <article>
+          <span>2</span>
+          <h3>Cargá fotos por momento</h3>
+          <p>La app crea una caja por cada momento. Arrastrá las fotos desde la carpeta correspondiente.</p>
+        </article>
+        <article>
+          <span>3</span>
+          <h3>Autoasigná tratamientos</h3>
+          <p>Dentro de cada momento, divide las fotos en bloques consecutivos según la cantidad de tratamientos.</p>
+        </article>
+        <article>
+          <span>4</span>
+          <h3>Descargá resultados</h3>
+          <p>Podés descargar fotos etiquetadas, PowerPoint o una descarga completa.</p>
+        </article>
+      </div>
     </section>
 
-    <section id="step1" class="screen active">
+    <nav class="progress-wrap">
+      <button class="progress-tab active" data-step="1" type="button">1. Configuración</button>
+      <button class="progress-tab" data-step="2" type="button">2. Fotos</button>
+      <button class="progress-tab" data-step="3" type="button">3. Exportación</button>
+    </nav>
+
+    <section class="screen active" id="step1">
       <div class="grid two-cols">
         <article class="card">
-          <div class="card-head">
-            <h2>Datos generales</h2>
-            <p>Protocolo, trial y localidad son comunes. El momento y la fecha pueden ser únicos o múltiples.</p>
+          <div class="section-head">
+            <div>
+              <p class="kicker">Datos generales</p>
+              <h2>Información del ensayo</h2>
+            </div>
           </div>
 
           <div class="form-grid">
             <label>Protocolo
-              <input id="protocolo" type="text" placeholder="Ej: SP26ARGB02" />
+              <input id="protocolo" type="text" placeholder="Ej: HP26ARGC01" />
             </label>
             <label>Trial
               <input id="trial" type="text" placeholder="Ej: TRIAL 01" />
@@ -40,155 +80,171 @@
             <label>Localidad
               <input id="localidad" type="text" placeholder="Ej: Pergamino" />
             </label>
-            <label>¿Vas a cargar uno o más momentos?
-              <select id="momentMode">
-                <option value="single">Un solo momento</option>
-                <option value="multiple">Dos o más momentos</option>
-              </select>
+            <label>Fotos por slide
+              <input id="photosPerSlide" type="number" min="1" max="6" value="3" />
             </label>
           </div>
 
-          <div id="singleMomentBox" class="form-grid moment-box">
-            <label>Momento
-              <input id="momento" type="text" placeholder="Ej: 14 DAA" />
-            </label>
-            <label>Fecha
-              <input id="fecha" type="date" />
-            </label>
-          </div>
+          <label class="wide-label">Tratamientos
+            <textarea id="treatmentsInput" placeholder="Un tratamiento por línea. Ej:&#10;Testigo&#10;T1&#10;T2"></textarea>
+          </label>
 
-          <div id="multipleMomentBox" class="moment-box hidden">
-            <label class="wide-label">
-              Momentos a cargar
-              <textarea id="momentosLista" placeholder="Escribí un momento por línea. Podés sumar fecha con |&#10;Ej:&#10;A1 | 2026-04-20&#10;A2 | 2026-05-05&#10;A3 | 2026-05-18"></textarea>
-            </label>
-            <div class="hint-box compact">
-              Cuando cargues varios momentos, cada foto tendrá dos desplegables: momento y tratamiento/parcela.
-            </div>
-          </div>
-
-          <div class="form-grid bottom-grid">
-            <label>Identificar fotos por
-              <select id="identificacionModo">
-                <option value="tratamiento">Tratamiento</option>
-                <option value="parcela">Parcela</option>
-              </select>
-            </label>
-            <label>Slides por tratamiento/parcela
-              <input id="slidesPorGrupo" type="number" min="1" max="20" value="1" />
-            </label>
-          </div>
-
-          <label class="wide-label">
-            Nombres de tratamientos/parcelas
-            <textarea id="nombresGrupos" placeholder="Escribí uno por línea o separados por coma.&#10;Ej:&#10;Testigo&#10;T1&#10;T2&#10;T3"></textarea>
+          <label class="wide-label">Momentos y fechas
+            <textarea id="momentsInput" placeholder="Un momento por línea. Usá | para agregar fecha. Ej:&#10;14 DAA | 2026-05-20&#10;28 DAA | 2026-06-03"></textarea>
           </label>
 
           <div class="hint-box">
-            Por default se genera <strong>1 slide por tratamiento/parcela</strong>. Si elegís 2 slides y un tratamiento tiene 4 fotos, la app divide 2 fotos en la primera slide y 2 en la segunda.
+            La carga de fotos se hace siempre por momento. Cada caja de carga corresponde a un momento distinto.
           </div>
 
           <div class="actions right">
-            <button class="btn primary" id="goStep2" type="button">Continuar a fotos</button>
+            <button class="btn primary" id="btnGoPhotos" type="button">Continuar a fotos</button>
           </div>
         </article>
 
-        <article class="card preview-card">
-          <div class="card-head">
-            <h2>Fondo de slide</h2>
-            <p>La app arranca con tu fondo por default, pero podés cambiarlo cuando quieras.</p>
-          </div>
-
-          <div class="background-actions">
-            <button class="btn ghost" id="changeBg" type="button">Cambiar fondo</button>
-            <button class="btn soft" id="resetBg" type="button">Usar fondo por default</button>
-            <input id="bgInput" class="hidden" type="file" accept="image/*,.heic,.heif" />
-          </div>
-
-          <div class="slide-preview">
-            <img id="backgroundPreview" src="fondo-default.jpg" alt="Fondo por default" />
-            <div class="preview-photo-box">Espacio para fotos más grande</div>
-            <div class="preview-label">
-              Protocolo · Trial · Localidad · Momento · Fecha · Tratamiento / Parcela
+        <article class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Salida y calidad</p>
+              <h2>Opciones de exportación</h2>
             </div>
           </div>
 
-          <label class="wide-label export-mode-label">
-            Modo de salida
-            <select id="exportMode">
-              <option value="with-bg">Con fondo institucional</option>
-              <option value="no-bg">Sin fondo: etiqueta sobre cada foto</option>
-            </select>
-          </label>
+          <div class="form-grid">
+            <label>Calidad de imágenes
+              <select id="qualityMode">
+                <option value="original" selected>Calidad original</option>
+                <option value="high">Alta calidad</option>
+                <option value="light">Liviano</option>
+              </select>
+            </label>
+            <label>Estilo de etiqueta
+              <select id="labelStyle">
+                <option value="technical" selected>Técnica</option>
+                <option value="compact">Compacta</option>
+                <option value="institutional">Institucional</option>
+              </select>
+            </label>
+          </div>
 
-          <div class="info-box">
-            Para cambiar el fondo fijo del repo, reemplazá <strong>fondo-default.jpg</strong> por otra imagen 16:9 con el mismo nombre. La opción sin fondo genera las fotos más grandes y pone la etiqueta encima de cada foto.
+          <div class="slide-preview">
+            <img id="backgroundPreview" src="fondo-default.jpg" alt="Fondo de PowerPoint" />
+            <div class="preview-strip">
+              <strong>Etiqueta técnica</strong>
+              <small>Protocolo · Trial · Localidad · Momento · Fecha · Tratamiento</small>
+            </div>
+          </div>
+
+          <div class="actions wrap">
+            <button class="btn ghost" id="btnChangeBg" type="button">Cambiar fondo PPT</button>
+            <button class="btn soft" id="btnResetBg" type="button">Usar fondo por default</button>
+            <input id="bgInput" class="hidden" type="file" accept="image/*,.heic,.heif" />
+          </div>
+
+          <div class="hint-box">
+            El PowerPoint se genera en formato 16:9. Las fotos se acomodan en una sola fila, con 3 fotos por slide por defecto.
           </div>
         </article>
       </div>
     </section>
 
-    <section id="step2" class="screen">
-      <div class="grid two-cols photos-layout">
+    <section class="screen" id="step2">
+      <div class="grid photos-grid">
         <article class="card">
-          <div class="card-head row-head">
+          <div class="section-head">
             <div>
-              <h2>Carga y asignación de fotos</h2>
-              <p id="assignHelp">Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.</p>
+              <p class="kicker">Carga por momento</p>
+              <h2>Arrastrá las fotos a cada caja</h2>
             </div>
             <span class="counter" id="photoCounter">0 fotos</span>
           </div>
 
-          <div id="dropZones" class="drop-zones"></div>
+          <div id="dropZones" class="moment-board"></div>
 
           <div class="actions wrap">
-            <button class="btn primary" id="uploadPhotosBtn" type="button">Cargar fotos manualmente</button>
-            <button class="btn soft" id="autoAssignBtn" type="button">Autoasignar tratamientos</button>
-            <input id="photoInput" class="hidden" type="file" accept="image/*,.heic,.heif" multiple />
-          </div>
-
-          <div id="photoList" class="photo-list empty">
-            <p>Todavía no cargaste fotos.</p>
+            <button class="btn primary" id="btnAutoAssign" type="button">Autoasignar tratamientos</button>
+            <button class="btn ghost" id="btnBackConfig" type="button">Volver a configuración</button>
           </div>
         </article>
 
-        <aside class="side-stack">
-          <article class="card">
-            <div class="card-head">
-              <h2>Exportación</h2>
-              <p id="suggestionText">El nombre sugerido será Protocolo-Trial-Momento.</p>
+        <aside class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Control</p>
+              <h2>Resumen de asignaciones</h2>
             </div>
-
-            <div class="stats">
-              <div><span id="slideCount">0</span><small>slides</small></div>
-              <div><span id="assignedCount">0</span><small>asignadas</small></div>
-            </div>
-
-            <label>Nombre del archivo
-              <input id="fileName" type="text" value="Etiquetado_Fotos" />
-            </label>
-
-            <div class="actions wrap">
-              <button class="btn ghost" id="backStep1" type="button">Volver</button>
-              <button class="btn primary" id="downloadPptx" type="button">Descargar PowerPoint</button>
-            </div>
-          </article>
-
-          <article class="card">
-            <div class="card-head">
-              <h2>Vista previa de grupos</h2>
-              <p>Control rápido antes de exportar.</p>
-            </div>
-            <div id="groupPreview" class="group-preview empty">
-              <p>No hay grupos todavía.</p>
-            </div>
-          </article>
+          </div>
+          <div class="stats">
+            <div><span id="momentCount">0</span><small>momentos</small></div>
+            <div><span id="treatmentCount">0</span><small>tratamientos</small></div>
+            <div><span id="assignedCount">0</span><small>asignadas</small></div>
+            <div><span id="pptSlidesCount">0</span><small>slides PPT</small></div>
+          </div>
+          <div id="assignmentPreview" class="assignment-preview empty">Sin fotos cargadas todavía.</div>
         </aside>
+      </div>
+    </section>
+
+    <section class="screen" id="step3">
+      <div class="grid two-cols">
+        <article class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Descargables</p>
+              <h2>Generar archivos finales</h2>
+            </div>
+          </div>
+
+          <label>Nombre base de archivo
+            <input id="fileName" type="text" value="Etiquetador_Fotos" />
+          </label>
+
+          <div class="download-grid">
+            <button class="download-card" id="btnDownloadPhotos" type="button">
+              <strong>Descargar fotos</strong>
+              <span>ZIP con imágenes etiquetadas</span>
+            </button>
+            <button class="download-card" id="btnDownloadPpt" type="button">
+              <strong>Descargar PPT</strong>
+              <span>PowerPoint con dos sectores</span>
+            </button>
+            <button class="download-card featured" id="btnDownloadAll" type="button">
+              <strong>Descarga completa</strong>
+              <span>ZIP con fotos + PowerPoint</span>
+            </button>
+          </div>
+
+          <div id="exportStatus" class="status-box">Listo para exportar.</div>
+
+          <div class="actions wrap">
+            <button class="btn ghost" id="btnBackPhotos" type="button">Volver a fotos</button>
+          </div>
+        </article>
+
+        <article class="card">
+          <div class="section-head">
+            <div>
+              <p class="kicker">Estructura PPT</p>
+              <h2>Contenido generado</h2>
+            </div>
+          </div>
+          <div class="ppt-structure">
+            <div>
+              <h3>Sector 1 · Ordenado por momento</h3>
+              <p>Carátula por momento. Fotos en una sola fila. Sobre cada foto se indica el tratamiento.</p>
+            </div>
+            <div>
+              <h3>Sector 2 · Ordenado por tratamiento</h3>
+              <p>Carátula por tratamiento. Fotos en una sola fila. Sobre cada foto se indica el momento.</p>
+            </div>
+          </div>
+        </article>
       </div>
     </section>
   </main>
 
-  <script src="pptxgen.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
   <script src="app.js"></script>
 </body>

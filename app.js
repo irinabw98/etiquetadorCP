@@ -1,380 +1,726 @@
-const DEFAULT_BACKGROUND_URL = 'fondo-default.jpg';
+const DEFAULT_BACKGROUND_URL = "fondo-default.jpg";
+const DB_NAME = "etiquetador_fotos_db_v1";
+const DB_STORE = "project";
+const PROJECT_KEY = "current_project";
 
 const state = {
   step: 1,
   backgroundSrc: DEFAULT_BACKGROUND_URL,
-  exportMode: 'with-bg',
   photos: [],
-  fileNameTouched: false
+  hydrated: false
 };
 
 const $ = (id) => document.getElementById(id);
-
 const els = {
-  stepPill: $('stepPill'), tabStep1: $('tabStep1'), tabStep2: $('tabStep2'), step1: $('step1'), step2: $('step2'),
-  protocolo: $('protocolo'), trial: $('trial'), localidad: $('localidad'), momentMode: $('momentMode'), singleMomentBox: $('singleMomentBox'), multipleMomentBox: $('multipleMomentBox'), momento: $('momento'), fecha: $('fecha'), momentosLista: $('momentosLista'),
-  identificacionModo: $('identificacionModo'), slidesPorGrupo: $('slidesPorGrupo'), nombresGrupos: $('nombresGrupos'), goStep2: $('goStep2'),
-  changeBg: $('changeBg'), resetBg: $('resetBg'), bgInput: $('bgInput'), backgroundPreview: $('backgroundPreview'),
-  uploadPhotosBtn: $('uploadPhotosBtn'), photoInput: $('photoInput'), autoAssignBtn: $('autoAssignBtn'), photoList: $('photoList'), photoCounter: $('photoCounter'),
-  slideCount: $('slideCount'), assignedCount: $('assignedCount'), fileName: $('fileName'), backStep1: $('backStep1'), downloadPptx: $('downloadPptx'), groupPreview: $('groupPreview'),
-  assignHelp: $('assignHelp'), suggestionText: $('suggestionText'), dropZones: $('dropZones'), exportMode: $('exportMode')
+  btnStart: $("btnStart"),
+  btnClearProject: $("btnClearProject"),
+  instructions: $("instructions"),
+  progressTabs: Array.from(document.querySelectorAll(".progress-tab")),
+  step1: $("step1"),
+  step2: $("step2"),
+  step3: $("step3"),
+  protocolo: $("protocolo"),
+  trial: $("trial"),
+  localidad: $("localidad"),
+  photosPerSlide: $("photosPerSlide"),
+  treatmentsInput: $("treatmentsInput"),
+  momentsInput: $("momentsInput"),
+  qualityMode: $("qualityMode"),
+  labelStyle: $("labelStyle"),
+  backgroundPreview: $("backgroundPreview"),
+  btnChangeBg: $("btnChangeBg"),
+  btnResetBg: $("btnResetBg"),
+  bgInput: $("bgInput"),
+  btnGoPhotos: $("btnGoPhotos"),
+  dropZones: $("dropZones"),
+  btnAutoAssign: $("btnAutoAssign"),
+  btnBackConfig: $("btnBackConfig"),
+  photoCounter: $("photoCounter"),
+  momentCount: $("momentCount"),
+  treatmentCount: $("treatmentCount"),
+  assignedCount: $("assignedCount"),
+  pptSlidesCount: $("pptSlidesCount"),
+  assignmentPreview: $("assignmentPreview"),
+  fileName: $("fileName"),
+  btnDownloadPhotos: $("btnDownloadPhotos"),
+  btnDownloadPpt: $("btnDownloadPpt"),
+  btnDownloadAll: $("btnDownloadAll"),
+  btnBackPhotos: $("btnBackPhotos"),
+  exportStatus: $("exportStatus")
 };
 
-function parseMoments(raw) {
-  return String(raw || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => {
-    const parts = line.split('|').map(p => p.trim());
-    return { name: parts[0] || '', date: parts[1] || '' };
-  }).filter(m => m.name);
+function openDb(){
+  return new Promise((resolve,reject)=>{
+    const req = indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbSet(key,value){
+  const db = await openDb();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE,"readwrite");
+    tx.objectStore(DB_STORE).put(value,key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbGet(key){
+  const db = await openDb();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE,"readonly");
+    const req = tx.objectStore(DB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dbDelete(key){
+  const db = await openDb();
+  return new Promise((resolve,reject)=>{
+    const tx = db.transaction(DB_STORE,"readwrite");
+    tx.objectStore(DB_STORE).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
-function getMoments() {
-  if (els.momentMode.value === 'multiple') return parseMoments(els.momentosLista.value);
-  return [{ name: els.momento.value.trim(), date: els.fecha.value }].filter(m => m.name || m.date);
+function debounce(fn, wait=350){
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(()=>fn(...args), wait);
+  };
 }
 
-function meta() {
-  const moments = getMoments();
+function parseLines(raw){
+  return String(raw || "").split(/\r?\n|,/).map(v => v.trim()).filter(Boolean);
+}
+function parseMoments(raw){
+  return String(raw || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean).map((line, idx)=>{
+    const parts = line.split("|").map(p => p.trim());
+    return { id: "m"+idx+"_"+slug(parts[0] || "Momento"), name: parts[0] || "Momento", date: parts[1] || "" };
+  });
+}
+function getTreatments(){
+  return parseLines(els.treatmentsInput.value).map((name, idx)=>({ id:"t"+idx+"_"+slug(name), name }));
+}
+function getMoments(){
+  return parseMoments(els.momentsInput.value);
+}
+function getMeta(){
   return {
     protocolo: els.protocolo.value.trim(),
     trial: els.trial.value.trim(),
     localidad: els.localidad.value.trim(),
-    momentMode: els.momentMode.value,
-    momento: els.momento.value.trim(),
-    fecha: els.fecha.value,
-    moments,
-    identificacionModo: els.identificacionModo.value,
-    slidesPorGrupo: Math.max(1, Number(els.slidesPorGrupo.value || 1)),
-    nombresGruposRaw: els.nombresGrupos.value,
-    exportMode: els.exportMode ? els.exportMode.value : state.exportMode
+    photosPerSlide: Math.max(1, Math.min(6, Number(els.photosPerSlide.value || 3))),
+    qualityMode: els.qualityMode.value,
+    labelStyle: els.labelStyle.value,
+    treatments: getTreatments(),
+    moments: getMoments(),
+    backgroundSrc: state.backgroundSrc
   };
 }
-
-function normalizeOptions(raw) {
-  return String(raw || '').split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean);
+function slug(value){
+  return String(value || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^\w]+/g,"_").replace(/^_+|_+$/g,"").toLowerCase() || "item";
+}
+function sanitizeFileName(value){
+  return String(value || "Etiquetador_Fotos").trim()
+    .replace(/[\\/:*?"<>|]/g,"_").replace(/\s+/g,"_").replace(/_+/g,"_") || "Etiquetador_Fotos";
+}
+function escapeHtml(value){
+  return String(value || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function todayName(){
+  const m = getMeta();
+  return sanitizeFileName([m.protocolo,m.trial,m.localidad].filter(Boolean).join("_") || els.fileName.value || "Etiquetador_Fotos");
 }
 
-function sanitizeFileName(name) {
-  return String(name || '').trim().replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_').replace(/_+/g, '_') || 'Etiquetado_Fotos';
-}
-
-function suggestedFileName() {
-  const m = meta();
-  const parts = m.momentMode === 'multiple' ? [m.protocolo, m.trial] : [m.protocolo, m.trial, m.momento];
-  return sanitizeFileName(parts.filter(Boolean).join('-')) || 'Etiquetado_Fotos';
-}
-
-function refreshSuggestedFileName() {
-  if (!state.fileNameTouched) els.fileName.value = suggestedFileName();
-  els.suggestionText.textContent = meta().momentMode === 'multiple'
-    ? 'El nombre sugerido será Protocolo-Trial.'
-    : 'El nombre sugerido será Protocolo-Trial-Momento.';
-}
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsDataURL(file); });
-}
-function isHeicFile(file) {
-  const name = (file?.name || '').toLowerCase();
-  const type = (file?.type || '').toLowerCase();
-  return name.endsWith('.heic') || name.endsWith('.heif') || type.includes('heic') || type.includes('heif');
-}
-async function normalizeImageFile(file) {
-  if (!isHeicFile(file)) return fileToDataUrl(file);
-  if (typeof window.heic2any !== 'function') {
-    throw new Error('HEIC_LIB_MISSING');
-  }
-  const convertedBlob = await window.heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 });
-  const blob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
-  return fileToDataUrl(blob);
-}
-async function urlToDataUrl(url) { if (url.startsWith('data:')) return url; const response = await fetch(url); const blob = await response.blob(); return fileToDataUrl(blob); }
-function getImageSize(dataUrl) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve({ width: img.width, height: img.height }); img.onerror = reject; img.src = dataUrl; }); }
-function fitContain(imgW, imgH, boxW, boxH) { const imgRatio = imgW / imgH; const boxRatio = boxW / boxH; let w, h; if (imgRatio > boxRatio) { w = boxW; h = boxW / imgRatio; } else { h = boxH; w = boxH * imgRatio; } return { w, h, xOffset: (boxW - w) / 2, yOffset: (boxH - h) / 2 }; }
-
-function groupPhotos() {
-  const m = meta();
-  const map = new Map();
-  for (const photo of state.photos) {
-    const groupName = photo.groupName && photo.groupName.trim() ? photo.groupName.trim() : 'Sin asignar';
-    const momentName = m.momentMode === 'multiple' ? (photo.momentName && photo.momentName.trim() ? photo.momentName.trim() : 'Sin momento') : (m.moments[0]?.name || m.momento || '');
-    const momentDate = m.momentMode === 'multiple' ? (photo.momentDate || '') : (m.moments[0]?.date || m.fecha || '');
-    const key = `${momentName}||${momentDate}||${groupName}`;
-    if (!map.has(key)) map.set(key, { momentName, momentDate, groupName, photos: [] });
-    map.get(key).photos.push(photo);
-  }
-  return Array.from(map.values());
-}
-
-function splitEvenly(items, parts) {
-  const cleanParts = Math.max(1, Number(parts || 1));
-  if (!items.length) return [];
-  const result = [], base = Math.floor(items.length / cleanParts), remainder = items.length % cleanParts;
-  let start = 0;
-  for (let i = 0; i < cleanParts; i++) { const size = base + (i < remainder ? 1 : 0); if (size <= 0) continue; result.push(items.slice(start, start + size)); start += size; }
-  return result;
-}
-function getSlideChunksForGroup(group) { return splitEvenly(group.photos, meta().slidesPorGrupo); }
-function countTotalSlides() { return groupPhotos().reduce((acc, group) => acc + getSlideChunksForGroup(group).length, 0); }
-
-function dynamicPhotoLayout(count, noBackground = false) {
-  const area = noBackground ? { x: 0.42, y: 0.42, w: 12.5, h: 6.65 } : { x: 0.72, y: 1.18, w: 11.88, h: 5.18 };
-  const gap = 0.13;
-  if (count <= 1) return [{ x: area.x, y: area.y, w: area.w, h: area.h }];
-  const cols = count === 2 ? 2 : count <= 4 ? 2 : 3;
-  const rows = Math.ceil(count / cols);
-  const cellW = (area.w - gap * (cols - 1)) / cols;
-  const cellH = (area.h - gap * (rows - 1)) / rows;
-  return Array.from({ length: count }, (_, i) => {
-    const row = Math.floor(i / cols), col = i % cols;
-    const itemsInRow = row === rows - 1 ? count - row * cols : cols;
-    const rowOffset = itemsInRow < cols ? ((cols - itemsInRow) * (cellW + gap)) / 2 : 0;
-    return { x: area.x + rowOffset + col * (cellW + gap), y: area.y + row * (cellH + gap), w: cellW, h: cellH };
-  });
-}
-
-function setStep(step) {
+function setStep(step){
   state.step = step;
-  els.step1.classList.toggle('active', step === 1); els.step2.classList.toggle('active', step === 2);
-  els.tabStep1.classList.toggle('active', step === 1); els.tabStep2.classList.toggle('active', step === 2);
-  els.stepPill.textContent = `Paso ${step} de 2`; window.scrollTo({ top: 0, behavior: 'smooth' });
+  [els.step1, els.step2, els.step3].forEach((el, i)=>el.classList.toggle("active", i + 1 === step));
+  els.progressTabs.forEach(tab => tab.classList.toggle("active", Number(tab.dataset.step) === step));
+  window.scrollTo({top:0,behavior:"smooth"});
+  saveProject();
 }
-
-function validateStep1() {
-  const m = meta();
-  if (!m.protocolo || !m.trial || !m.localidad) { alert('Completá Protocolo, Trial y Localidad antes de continuar.'); return false; }
-  if (m.momentMode === 'single' && (!m.momento || !m.fecha)) { alert('Completá Momento y Fecha antes de continuar.'); return false; }
-  if (m.momentMode === 'multiple' && !m.moments.length) { alert('Cargá al menos un momento en la lista de momentos.'); return false; }
+function validateConfig(){
+  const m = getMeta();
+  if(!m.protocolo || !m.trial || !m.localidad){ alert("Completá protocolo, trial y localidad."); return false; }
+  if(!m.treatments.length){ alert("Cargá al menos un tratamiento."); return false; }
+  if(!m.moments.length){ alert("Cargá al menos un momento con su fecha."); return false; }
   return true;
 }
 
-function escapeHtml(value) { return String(value || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
-async function addPhotoFiles(files, moment) {
-  const cleanFiles = Array.from(files || []).filter((file) => {
-    const type = (file.type || '').toLowerCase();
-    const name = (file.name || '').toLowerCase();
-    return type.startsWith('image/') || name.endsWith('.heic') || name.endsWith('.heif');
+function isHeicFile(file){
+  const name = (file?.name || "").toLowerCase();
+  const type = (file?.type || "").toLowerCase();
+  return name.endsWith(".heic") || name.endsWith(".heif") || type.includes("heic") || type.includes("heif");
+}
+function fileToDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
   });
-  if (!cleanFiles.length) return;
+}
+async function normalizeImageFile(file){
+  if(!isHeicFile(file)) return fileToDataUrl(file);
+  if(typeof window.heic2any !== "function") throw new Error("No se pudo cargar la librería HEIC.");
+  const converted = await window.heic2any({ blob:file, toType:"image/jpeg", quality:.95 });
+  const blob = Array.isArray(converted) ? converted[0] : converted;
+  return fileToDataUrl(blob);
+}
+function getImageSize(dataUrl){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = () => resolve({ width:img.naturalWidth || img.width, height:img.naturalHeight || img.height });
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+function getMimeFromDataUrl(dataUrl){
+  const match = String(dataUrl).match(/^data:([^;]+);/);
+  return match ? match[1] : "image/jpeg";
+}
+function dataUrlToBlob(dataUrl){
+  const [head, body] = dataUrl.split(",");
+  const mime = (head.match(/:(.*?);/) || [,"application/octet-stream"])[1];
+  const bin = atob(body);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type:mime });
+}
+async function maybeCompressImage(dataUrl, mode){
+  if(mode === "original") return dataUrl;
+  const size = await getImageSize(dataUrl);
+  const maxSide = mode === "high" ? 2200 : 1400;
+  const ratio = Math.min(1, maxSide / Math.max(size.width, size.height));
+  if(ratio >= 1 && mode === "high") return dataUrl;
+  const img = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(size.width * ratio);
+  canvas.height = Math.round(size.height * ratio);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", mode === "high" ? .92 : .78);
+}
+function loadImage(src){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
 
+async function addPhotoFiles(files, momentId){
+  const clean = Array.from(files || []).filter(f => (f.type || "").startsWith("image/") || /\.(heic|heif)$/i.test(f.name || ""));
+  if(!clean.length) return;
+  setStatus("Cargando fotos...");
   const next = [];
-  const heicErrors = [];
-  for (let index = 0; index < cleanFiles.length; index++) {
-    const file = cleanFiles[index];
-    try {
+  for(const file of clean){
+    try{
+      const rawDataUrl = await normalizeImageFile(file);
+      const dataUrl = await maybeCompressImage(rawDataUrl, getMeta().qualityMode);
+      const size = await getImageSize(dataUrl);
       next.push({
-        id: Date.now() + '-' + Math.random().toString(16).slice(2) + '-' + index + '-' + file.name,
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now()+"_"+Math.random(),
         fileName: file.name,
-        dataUrl: await normalizeImageFile(file),
-        groupName: '',
-        momentName: moment && moment.name ? moment.name : '',
-        momentDate: moment && moment.date ? moment.date : ''
+        dataUrl,
+        width: size.width,
+        height: size.height,
+        momentId,
+        treatmentId: "",
+        order: state.photos.length + next.length
       });
-    } catch (error) {
-      if (isHeicFile(file)) heicErrors.push(file.name);
-      else console.error(error);
+    }catch(err){
+      alert("No se pudo cargar " + file.name + ". " + (err?.message || ""));
     }
-  }
-
-  if (heicErrors.length) {
-    alert('Algunas fotos HEIC/HEIF de iPhone no pudieron convertirse. Revisá tu conexión para cargar la librería HEIC o cambiá el iPhone a Cámara > Formatos > Más compatible. Archivos: ' + heicErrors.join(', '));
   }
   state.photos.push(...next);
-  renderPhotoList();
+  renderAll();
+  await saveProject();
+  setStatus("Fotos cargadas.");
 }
 
-function renderDropZones() {
-  if (!els.dropZones) return;
+function renderDropZones(){
   const moments = getMoments();
-  const isMultiple = els.momentMode.value === 'multiple';
-  const zones = isMultiple && moments.length ? moments : [{ name: els.momento.value.trim() || 'Momento único', date: els.fecha.value || '' }];
-  els.dropZones.innerHTML = zones.map((moment, index) => {
-    const count = isMultiple ? state.photos.filter((p) => p.momentName === moment.name).length : state.photos.length;
-    const title = isMultiple ? moment.name : 'Arrastrá fotos acá';
-    const sub = isMultiple ? ((moment.date ? moment.date + ' · ' : '') + count + ' foto(s) cargada(s)') : ('Para este momento · ' + count + ' foto(s) cargada(s)');
-    return '<div class="drop-zone" data-moment-index="' + index + '">' +
-      '<div class="drop-icon">＋</div>' +
-      '<div><strong>' + escapeHtml(title) + '</strong><span>' + escapeHtml(sub) + '</span></div>' +
-      '<small>Soltá imágenes acá</small>' +
-    '</div>';
-  }).join('');
+  const treatments = getTreatments();
+  els.dropZones.innerHTML = "";
+  if(!moments.length){
+    els.dropZones.innerHTML = `<div class="hint-box">Primero cargá momentos en configuración.</div>`;
+    return;
+  }
+  moments.forEach(moment=>{
+    const photos = state.photos.filter(p => p.momentId === moment.id).sort((a,b)=>a.order-b.order);
+    const card = document.createElement("article");
+    card.className = "moment-card";
+    card.innerHTML = `
+      <div class="moment-header">
+        <div>
+          <h3>${escapeHtml(moment.name)}</h3>
+          <small>${escapeHtml(moment.date || "Sin fecha")} · ${photos.length} foto(s)</small>
+        </div>
+      </div>
+      <div class="drop-zone" data-moment-id="${escapeHtml(moment.id)}">
+        <div>
+          <strong>Arrastrá fotos acá</strong>
+          <span>También podés hacer click para seleccionar archivos</span>
+        </div>
+      </div>
+      <input class="hidden moment-file-input" data-moment-id="${escapeHtml(moment.id)}" type="file" accept="image/*,.heic,.heif" multiple>
+      <div class="photo-list">
+        ${photos.map(photo => renderPhotoItem(photo, treatments)).join("")}
+      </div>
+    `;
+    els.dropZones.appendChild(card);
+  });
 
-  els.dropZones.querySelectorAll('.drop-zone').forEach((zone) => {
-    const index = Number(zone.dataset.momentIndex || 0);
-    const moment = zones[index] || null;
-    ['dragenter', 'dragover'].forEach((evtName) => zone.addEventListener(evtName, (event) => {
-      event.preventDefault();
-      zone.classList.add('drag-over');
+  els.dropZones.querySelectorAll(".drop-zone").forEach(zone=>{
+    const momentId = zone.dataset.momentId;
+    const input = els.dropZones.querySelector(`.moment-file-input[data-moment-id="${CSS.escape(momentId)}"]`);
+    zone.addEventListener("click", () => input.click());
+    ["dragenter","dragover"].forEach(evt => zone.addEventListener(evt, e => {
+      e.preventDefault();
+      zone.classList.add("drag-over");
     }));
-    ['dragleave', 'drop'].forEach((evtName) => zone.addEventListener(evtName, (event) => {
-      event.preventDefault();
-      if (evtName === 'drop') addPhotoFiles(event.dataTransfer.files, isMultiple ? moment : null);
-      zone.classList.remove('drag-over');
+    ["dragleave","drop"].forEach(evt => zone.addEventListener(evt, e => {
+      e.preventDefault();
+      zone.classList.remove("drag-over");
+      if(evt === "drop") addPhotoFiles(e.dataTransfer.files, momentId);
     }));
-    zone.addEventListener('click', () => els.photoInput.click());
+    input.addEventListener("change", e => {
+      addPhotoFiles(e.target.files, momentId);
+      input.value = "";
+    });
+  });
+
+  els.dropZones.querySelectorAll("[data-action='treatment']").forEach(sel=>{
+    sel.addEventListener("change", async ()=>{
+      const photo = state.photos.find(p => p.id === sel.dataset.photoId);
+      if(photo) photo.treatmentId = sel.value;
+      renderAll();
+      await saveProject();
+    });
+  });
+  els.dropZones.querySelectorAll("[data-action='remove']").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      state.photos = state.photos.filter(p => p.id !== btn.dataset.photoId);
+      renderAll();
+      await saveProject();
+    });
+  });
+  els.dropZones.querySelectorAll("[data-action='up'],[data-action='down']").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      movePhoto(btn.dataset.photoId, btn.dataset.action === "up" ? -1 : 1);
+      renderAll();
+      await saveProject();
+    });
   });
 }
-
-function updateMomentModeUI() {
-  const isMultiple = els.momentMode.value === 'multiple';
-  els.singleMomentBox.classList.toggle('hidden', isMultiple);
-  els.multipleMomentBox.classList.toggle('hidden', !isMultiple);
-  els.assignHelp.textContent = isMultiple
-    ? 'Subí todas las fotos y elegí momento + tratamiento/parcela para cada una.'
-    : 'Subí todas las fotos y elegí a qué tratamiento/parcela pertenece cada una.';
-  refreshSuggestedFileName();
-  renderDropZones();
-  renderPhotoList();
+function renderPhotoItem(photo, treatments){
+  return `
+    <div class="photo-item">
+      <img src="${photo.dataUrl}" alt="${escapeHtml(photo.fileName)}">
+      <div class="photo-meta">
+        <p>${escapeHtml(photo.fileName)}</p>
+        <select data-action="treatment" data-photo-id="${escapeHtml(photo.id)}">
+          <option value="">Seleccionar tratamiento...</option>
+          ${treatments.map(t => `<option value="${escapeHtml(t.id)}" ${photo.treatmentId === t.id ? "selected" : ""}>${escapeHtml(t.name)}</option>`).join("")}
+        </select>
+        <div class="photo-actions">
+          <button class="icon-btn" data-action="up" data-photo-id="${escapeHtml(photo.id)}" type="button">↑</button>
+          <button class="icon-btn" data-action="down" data-photo-id="${escapeHtml(photo.id)}" type="button">↓</button>
+          <button class="icon-btn danger" data-action="remove" data-photo-id="${escapeHtml(photo.id)}" type="button">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function movePhoto(photoId, delta){
+  const photo = state.photos.find(p => p.id === photoId);
+  if(!photo) return;
+  const group = state.photos.filter(p => p.momentId === photo.momentId).sort((a,b)=>a.order-b.order);
+  const i = group.findIndex(p => p.id === photoId);
+  const j = i + delta;
+  if(j < 0 || j >= group.length) return;
+  const temp = group[i].order;
+  group[i].order = group[j].order;
+  group[j].order = temp;
 }
 
-function renderPhotoList() {
-  renderDropZones();
-  els.photoCounter.textContent = `${state.photos.length} foto${state.photos.length === 1 ? '' : 's'}`;
-  if (!state.photos.length) { els.photoList.className = 'photo-list empty'; els.photoList.innerHTML = '<p>Todavía no cargaste fotos.</p>'; renderGroupPreview(); return; }
-  const options = normalizeOptions(els.nombresGrupos.value);
+function autoAssignTreatments(){
   const moments = getMoments();
-  const isMultiple = els.momentMode.value === 'multiple';
-  els.photoList.className = 'photo-list'; els.photoList.innerHTML = '';
-  state.photos.forEach((photo, index) => {
-    const row = document.createElement('div'); row.className = 'photo-row';
-    const momentHtml = isMultiple ? `<label>Momento<select data-action="moment" data-id="${photo.id}"><option value="">Seleccionar...</option>${moments.map((mom) => `<option value="${escapeHtml(mom.name)}" ${photo.momentName === mom.name ? 'selected' : ''}>${escapeHtml(mom.name)}${mom.date ? ' · ' + escapeHtml(mom.date) : ''}</option>`).join('')}</select></label>` : '';
-    const selectorHtml = options.length
-      ? `<select data-action="group" data-id="${photo.id}"><option value="">Seleccionar...</option>${options.map((opt) => `<option value="${escapeHtml(opt)}" ${photo.groupName === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}</select>`
-      : `<input data-action="group" data-id="${photo.id}" type="text" value="${escapeHtml(photo.groupName)}" placeholder="Escribir ${els.identificacionModo.value}" />`;
-    row.innerHTML = `<img class="photo-thumb" src="${photo.dataUrl}" alt="${escapeHtml(photo.fileName)}" /><div><p class="photo-title">Foto ${index + 1}</p><p class="photo-name">${escapeHtml(photo.fileName)}</p><div class="assign-grid">${momentHtml}<label>${els.identificacionModo.value === 'tratamiento' ? 'Tratamiento' : 'Parcela'}${selectorHtml}</label></div></div><button class="delete-btn" type="button" data-action="delete" data-id="${photo.id}">×</button>`;
-    els.photoList.appendChild(row);
-  });
-  renderGroupPreview();
+  const treatments = getTreatments();
+  if(!treatments.length){ alert("Primero cargá tratamientos."); return; }
+  for(const moment of moments){
+    const photos = state.photos.filter(p => p.momentId === moment.id).sort((a,b)=>a.order-b.order);
+    if(!photos.length) continue;
+    const block = Math.ceil(photos.length / treatments.length);
+    photos.forEach((photo, idx)=>{
+      const treatmentIndex = Math.min(treatments.length - 1, Math.floor(idx / block));
+      photo.treatmentId = treatments[treatmentIndex].id;
+    });
+  }
+  renderAll();
+  saveProject();
 }
 
-function renderGroupPreview() {
-  const groups = groupPhotos();
-  const assigned = state.photos.filter((p) => p.groupName && p.groupName.trim() && (els.momentMode.value !== 'multiple' || (p.momentName && p.momentName.trim()))).length;
-  els.slideCount.textContent = countTotalSlides(); els.assignedCount.textContent = assigned;
-  if (!groups.length) { els.groupPreview.className = 'group-preview empty'; els.groupPreview.innerHTML = '<p>No hay grupos todavía.</p>'; return; }
-  const slidesByGroup = meta().slidesPorGrupo;
-  els.groupPreview.className = 'group-preview';
-  els.groupPreview.innerHTML = groups.map((group) => {
-    const chunks = getSlideChunksForGroup(group);
-    const title = `${group.momentName ? group.momentName + ' · ' : ''}${group.groupName}`;
-    return `<div class="group-card"><h3>${escapeHtml(title)}</h3><p>${group.photos.length} foto(s) · ${chunks.length} slide(s) · pedido: ${slidesByGroup} slide(s)</p><div class="mini-grid" style="grid-template-columns: repeat(${Math.min(3, Math.max(1, group.photos.length))}, 1fr)">${group.photos.slice(0, 6).map((p) => `<img src="${p.dataUrl}" alt="${escapeHtml(p.fileName)}" />`).join('')}</div></div>`;
-  }).join('');
+function renderStats(){
+  const moments = getMoments();
+  const treatments = getTreatments();
+  const assigned = state.photos.filter(p => p.treatmentId).length;
+  els.photoCounter.textContent = `${state.photos.length} foto${state.photos.length === 1 ? "" : "s"}`;
+  els.momentCount.textContent = moments.length;
+  els.treatmentCount.textContent = treatments.length;
+  els.assignedCount.textContent = assigned;
+  els.pptSlidesCount.textContent = estimatePptSlides();
 }
-
-function buildLegend(m, group, slideIndex, slideTotal) {
-  const label = m.identificacionModo === 'tratamiento' ? 'Tratamiento' : 'Parcela';
-  return [`Protocolo: ${m.protocolo || '-'}`, `Trial: ${m.trial || '-'}`, `Localidad: ${m.localidad || '-'}`, `Momento: ${group.momentName || '-'}`, `Fecha: ${group.momentDate || '-'}`, `${label}: ${group.groupName || '-'}`, slideTotal > 1 ? `Slide: ${slideIndex}/${slideTotal}` : ''].filter(Boolean).join('   |   ');
-}
-function getPptxConstructor() { return window.PptxGenJS || window.pptxgen; }
-
-async function generatePptx() {
-  if (!state.photos.length) { alert('Primero cargá al menos una foto.'); return; }
-  const PptxCtor = getPptxConstructor();
-  if (typeof PptxCtor === 'undefined') { alert('No se pudo encontrar la librería local pptxgen.bundle.js. Revisá que ese archivo esté subido en la raíz del repo junto con index.html.'); return; }
-  const m = meta(); const groups = groupPhotos();
-  const pptx = new PptxCtor(); pptx.layout = 'LAYOUT_WIDE'; pptx.author = 'Etiquetador de fotos'; pptx.subject = 'Fotos etiquetadas'; pptx.title = els.fileName.value.trim() || suggestedFileName(); pptx.lang = 'es-AR'; pptx.theme = { headFontFace: 'Aptos Display', bodyFontFace: 'Aptos', lang: 'es-AR' };
-  const noBackground = m.exportMode === 'no-bg';
-  const backgroundData = noBackground ? null : await urlToDataUrl(state.backgroundSrc);
-  for (const group of groups) {
-    const chunks = getSlideChunksForGroup(group);
-    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-      const chunk = chunks[chunkIndex]; const slide = pptx.addSlide();
-      if (!noBackground) {
-        slide.addImage({ data: backgroundData, x: 0, y: 0, w: 13.333, h: 7.5 });
-      } else {
-        slide.background = { color: 'FFFFFF' };
-      }
-      if (!noBackground) slide.addText(group.groupName || 'Sin asignar', { x: 0.74, y: 0.82, w: 6.6, h: 0.35, fontFace: 'Aptos Display', fontSize: 17, bold: true, color: '4B2385', margin: 0, fit: 'shrink' });
-      if (!noBackground && m.momentMode === 'multiple') slide.addText(group.momentName || '', { x: 0.74, y: 1.05, w: 6.6, h: 0.22, fontFace: 'Aptos', fontSize: 10, bold: true, color: '6D36B5', margin: 0, fit: 'shrink' });
-      const layout = dynamicPhotoLayout(chunk.length, noBackground);
-      for (let i = 0; i < chunk.length; i++) {
-        const photo = chunk[i], box = layout[i], size = await getImageSize(photo.dataUrl), fitted = fitContain(size.width, size.height, box.w, box.h);
-        slide.addShape(pptx.ShapeType.roundRect, { x: box.x, y: box.y, w: box.w, h: box.h, rectRadius: 0.08, line: { color: 'D8CCE9', pt: 1.05 }, fill: { color: 'FFFFFF', transparency: 0 }, shadow: { type: 'outer', color: '6D36B5', opacity: 0.11, blur: 1, angle: 45, distance: 1 } });
-        slide.addImage({ data: photo.dataUrl, x: box.x + fitted.xOffset, y: box.y + fitted.yOffset, w: fitted.w, h: fitted.h });
-        if (noBackground) {
-          const labelText = buildLegend(m, group, chunkIndex + 1, chunks.length);
-          const labelH = Math.min(0.38, Math.max(0.24, fitted.h * 0.12));
-          slide.addShape(pptx.ShapeType.roundRect, { x: box.x + fitted.xOffset + 0.08, y: box.y + fitted.yOffset + fitted.h - labelH - 0.08, w: Math.max(0.8, fitted.w - 0.16), h: labelH, rectRadius: 0.04, line: { color: 'D8CCE9', pt: 0.45, transparency: 10 }, fill: { color: 'FFFFFF', transparency: 8 } });
-          slide.addText(labelText, { x: box.x + fitted.xOffset + 0.16, y: box.y + fitted.yOffset + fitted.h - labelH + 0.005, w: Math.max(0.6, fitted.w - 0.32), h: labelH - 0.02, fontFace: 'Aptos', fontSize: 7.7, color: '24113F', bold: true, margin: 0, align: 'center', valign: 'mid', fit: 'shrink' });
-        }
-      }
-      if (!noBackground) {
-        slide.addShape(pptx.ShapeType.roundRect, { x: 1.18, y: 6.67, w: 11.18, h: 0.34, rectRadius: 0.05, line: { color: 'D8CCE9', pt: 0.7 }, fill: { color: 'FFFFFF', transparency: 4 } });
-        slide.addText(buildLegend(m, group, chunkIndex + 1, chunks.length), { x: 1.34, y: 6.725, w: 10.86, h: 0.22, fontFace: 'Aptos', fontSize: 9.4, color: '24113F', bold: true, margin: 0, align: 'center', valign: 'mid', fit: 'shrink' });
-      }
+function renderAssignmentPreview(){
+  const moments = getMoments();
+  const treatments = getTreatments();
+  if(!state.photos.length){
+    els.assignmentPreview.className = "assignment-preview empty";
+    els.assignmentPreview.textContent = "Sin fotos cargadas todavía.";
+    return;
+  }
+  els.assignmentPreview.className = "assignment-preview";
+  const rows = [];
+  for(const moment of moments){
+    const momentPhotos = state.photos.filter(p => p.momentId === moment.id);
+    for(const treatment of treatments){
+      const count = momentPhotos.filter(p => p.treatmentId === treatment.id).length;
+      rows.push(`<div class="assignment-row"><strong>${escapeHtml(moment.name)} · ${escapeHtml(treatment.name)}</strong><small>${count} foto(s)</small></div>`);
     }
   }
-  const safeName = sanitizeFileName(els.fileName.value.trim() || suggestedFileName()); await pptx.writeFile({ fileName: `${safeName}.pptx` });
+  els.assignmentPreview.innerHTML = rows.join("");
+}
+function estimatePptSlides(){
+  const m = getMeta();
+  const pps = m.photosPerSlide;
+  let slides = 1;
+  slides += m.moments.length;
+  for(const moment of m.moments){
+    for(const treatment of m.treatments){
+      const count = state.photos.filter(p => p.momentId === moment.id && p.treatmentId === treatment.id).length;
+      slides += Math.ceil(count / pps);
+    }
+  }
+  slides += m.treatments.length;
+  for(const treatment of m.treatments){
+    for(const moment of m.moments){
+      const count = state.photos.filter(p => p.treatmentId === treatment.id && p.momentId === moment.id).length;
+      slides += Math.ceil(count / pps);
+    }
+  }
+  return slides;
+}
+function renderAll(){
+  renderDropZones();
+  renderStats();
+  renderAssignmentPreview();
 }
 
-els.goStep2.addEventListener('click', () => { if (validateStep1()) setStep(2); });
-els.tabStep1.addEventListener('click', () => setStep(1));
-els.tabStep2.addEventListener('click', () => { if (validateStep1()) setStep(2); });
-els.backStep1.addEventListener('click', () => setStep(1));
-els.changeBg.addEventListener('click', () => els.bgInput.click());
-els.resetBg.addEventListener('click', () => { state.backgroundSrc = DEFAULT_BACKGROUND_URL; els.backgroundPreview.src = DEFAULT_BACKGROUND_URL; });
-els.bgInput.addEventListener('change', async (event) => { const file = event.target.files?.[0]; if (!file) return; state.backgroundSrc = await fileToDataUrl(file); els.backgroundPreview.src = state.backgroundSrc; event.target.value = ''; });
-els.uploadPhotosBtn.addEventListener('click', () => els.photoInput.click());
-els.photoInput.addEventListener('change', async (event) => { await addPhotoFiles(event.target.files, null); event.target.value = ''; });
-els.photoList.addEventListener('input', handlePhotoField);
-els.photoList.addEventListener('change', handlePhotoField);
-function handlePhotoField(event) {
-  const target = event.target; if (!target.dataset.action) return;
-  const photo = state.photos.find((p) => p.id === target.dataset.id); if (!photo) return;
-  if (target.dataset.action === 'group') photo.groupName = target.value;
-  if (target.dataset.action === 'moment') { photo.momentName = target.value; const found = getMoments().find(m => m.name === target.value); photo.momentDate = found?.date || ''; }
-  renderGroupPreview();
+function fitContain(imgW,imgH,boxW,boxH){
+  const r = imgW / imgH;
+  const br = boxW / boxH;
+  let w,h;
+  if(r > br){ w = boxW; h = boxW / r; } else { h = boxH; w = boxH * r; }
+  return { w,h,x:(boxW-w)/2,y:(boxH-h)/2 };
 }
-els.photoList.addEventListener('click', (event) => { const target = event.target; if (target.dataset.action !== 'delete') return; state.photos = state.photos.filter((p) => p.id !== target.dataset.id); renderPhotoList(); });
-els.autoAssignBtn.addEventListener('click', () => {
-  const options = normalizeOptions(meta().nombresGruposRaw);
-  if (!options.length) { alert('Primero cargá la lista de tratamientos/parcelas en el Paso 1.'); return; }
+function chunk(arr,size){
+  const out = [];
+  for(let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size));
+  return out;
+}
 
-  const moments = getMoments();
-  const isMultiple = els.momentMode.value === 'multiple';
+function buildLabelLines(photo, meta){
+  const moment = meta.moments.find(m => m.id === photo.momentId) || {};
+  const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
+  if(meta.labelStyle === "compact"){
+    return [`${meta.protocolo} | ${meta.trial} | ${meta.localidad} | ${moment.name || ""} | ${moment.date || ""} | ${treatment.name || ""}`];
+  }
+  return [
+    `Protocolo: ${meta.protocolo}`,
+    `Trial: ${meta.trial}`,
+    `Localidad: ${meta.localidad}`,
+    `Momento: ${moment.name || ""}`,
+    `Fecha: ${moment.date || ""}`,
+    `Tratamiento: ${treatment.name || ""}`
+  ];
+}
+async function makeLabeledImage(photo, meta){
+  const img = await loadImage(photo.dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = photo.width;
+  canvas.height = photo.height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-  function assignBlocks(photoSubset) {
-    const total = photoSubset.length;
-    if (!total) return;
-    const treatmentCount = options.length;
-    const base = Math.floor(total / treatmentCount);
-    const remainder = total % treatmentCount;
-    let cursor = 0;
+  const lines = buildLabelLines(photo, meta);
+  const pad = Math.max(16, Math.round(canvas.width * .018));
+  const fontSize = Math.max(22, Math.round(canvas.width * .024));
+  const lineH = Math.round(fontSize * 1.28);
+  const bandH = Math.min(Math.round(canvas.height * .32), Math.max(lineH * lines.length + pad * 2, Math.round(canvas.height * .16)));
 
-    options.forEach((groupName, groupIndex) => {
-      const blockSize = base + (groupIndex < remainder ? 1 : 0);
-      for (let i = 0; i < blockSize && cursor < total; i++) {
-        photoSubset[cursor].groupName = groupName;
-        cursor++;
-      }
+  ctx.fillStyle = meta.labelStyle === "institutional" ? "rgba(6,59,104,.90)" : "rgba(255,255,255,.92)";
+  ctx.fillRect(0, canvas.height - bandH, canvas.width, bandH);
+  ctx.fillStyle = meta.labelStyle === "institutional" ? "#FFFFFF" : "#102033";
+  ctx.font = `700 ${fontSize}px Arial, sans-serif`;
+  ctx.textBaseline = "top";
+
+  if(lines.length === 1){
+    let text = lines[0];
+    while(ctx.measureText(text).width > canvas.width - pad*2 && text.length > 10) text = text.slice(0,-2) + "…";
+    ctx.fillText(text, pad, canvas.height - bandH + (bandH-fontSize)/2);
+  }else{
+    const cols = 2;
+    const colW = (canvas.width - pad*2) / cols;
+    lines.forEach((line, idx)=>{
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      let text = line;
+      while(ctx.measureText(text).width > colW - pad && text.length > 10) text = text.slice(0,-2) + "…";
+      ctx.fillText(text, pad + col*colW, canvas.height - bandH + pad + row*lineH);
     });
   }
 
-  if (isMultiple) {
-    moments.forEach((moment) => {
-      const subset = state.photos.filter((photo) => photo.momentName === moment.name);
-      assignBlocks(subset);
-    });
-    const withoutMoment = state.photos.filter((photo) => !photo.momentName);
-    assignBlocks(withoutMoment);
-  } else {
-    assignBlocks(state.photos);
+  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
+  const quality = meta.qualityMode === "light" ? .82 : .95;
+  return canvas.toDataURL(type, quality);
+}
+
+async function createPhotosZip(){
+  const meta = getMeta();
+  const zip = new JSZip();
+  const folder = zip.folder("fotos_etiquetadas");
+  for(let i=0;i<state.photos.length;i++){
+    const photo = state.photos[i];
+    const moment = meta.moments.find(m => m.id === photo.momentId) || {};
+    const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
+    const labeled = await makeLabeledImage(photo, meta);
+    const ext = getMimeFromDataUrl(labeled).includes("png") ? "png" : "jpg";
+    const name = sanitizeFileName(`${String(i+1).padStart(3,"0")}_${meta.protocolo}_${meta.trial}_${moment.name}_${treatment.name}`) + "." + ext;
+    folder.file(name, dataUrlToBlob(labeled));
+    setStatus(`Generando fotos ${i+1}/${state.photos.length}...`);
+  }
+  return zip;
+}
+
+function addCover(slide, meta, title, subtitle){
+  addBackground(slide, meta);
+  slide.addShape(pptx.ShapeType.rect,{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"DCE7EF"}});
+  slide.addText(title,{x:1.05,y:2.15,w:11.1,h:.65,fontFace:"Arial",fontSize:30,bold:true,color:"063B68",align:"center"});
+  slide.addText(subtitle,{x:1.25,y:2.95,w:10.7,h:.6,fontFace:"Arial",fontSize:16,bold:true,color:"102033",align:"center",fit:"shrink"});
+  slide.addText(`Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}`,{x:1.25,y:3.75,w:10.7,h:.45,fontSize:12,color:"66788A",align:"center",fit:"shrink"});
+}
+function addBackground(slide, meta){
+  if(meta.backgroundSrc) slide.addImage({data:meta.backgroundSrc,x:0,y:0,w:13.333,h:7.5});
+  else slide.background = { color:"FFFFFF" };
+}
+function addFooter(slide, text){
+  slide.addShape(pptx.ShapeType.rect,{x:.55,y:6.88,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"DCE7EF"}});
+  slide.addText(text,{x:.72,y:6.98,w:11.9,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"063B68",align:"center",fit:"shrink"});
+}
+function addPhotoRow(slide, photos, topLabels, footerText, meta){
+  addBackground(slide, meta);
+  const n = photos.length;
+  const area = {x:.55,y:1.25,w:12.25,h:5.25};
+  const gap = .17;
+  const cellW = (area.w - gap*(n-1))/n;
+  const cellH = area.h;
+  photos.forEach((photo, i)=>{
+    const x = area.x + i*(cellW+gap);
+    slide.addText(topLabels[i] || "",{x,y:.82,w:cellW,h:.28,fontFace:"Arial",fontSize:11,bold:true,color:"063B68",align:"center",fit:"shrink"});
+    const fit = fitContain(photo.width, photo.height, cellW, cellH);
+    slide.addShape(pptx.ShapeType.rect,{x,y:area.y,w:cellW,h:cellH,fill:{color:"FFFFFF",transparency:0},line:{color:"DCE7EF"}});
+    slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h});
+  });
+  addFooter(slide, footerText);
+}
+async function createPptBlob(){
+  if(typeof pptxgen === "undefined") throw new Error("No se cargó PptxGenJS.");
+  const meta = getMeta();
+  const pptx = new pptxgen();
+  window.pptx = pptx;
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = "Etiquetador de fotos";
+  pptx.subject = "Fotos etiquetadas";
+  pptx.title = `${meta.protocolo} ${meta.trial}`;
+  pptx.company = "Product Team";
+
+  let slide = pptx.addSlide();
+  addCover(slide, meta, "Resultados", `${meta.protocolo} · ${meta.trial} · ${meta.localidad}`);
+
+  slide = pptx.addSlide();
+  addCover(slide, meta, "Sector 1", "Fotos ordenadas por momento");
+
+  for(const moment of meta.moments){
+    slide = pptx.addSlide();
+    addCover(slide, meta, moment.name, `Fecha: ${moment.date || "Sin fecha"}`);
+    const photosMoment = state.photos.filter(p => p.momentId === moment.id && p.treatmentId);
+    const byTreat = meta.treatments.flatMap(t => photosMoment.filter(p => p.treatmentId === t.id));
+    for(const group of chunk(byTreat, meta.photosPerSlide)){
+      slide = pptx.addSlide();
+      const labels = group.map(p => (meta.treatments.find(t => t.id === p.treatmentId) || {}).name || "");
+      const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Momento: ${moment.name}   |   Fecha: ${moment.date || ""}`;
+      addPhotoRow(slide, group, labels, footer, meta);
+    }
   }
 
-  renderPhotoList();
-});
-['input', 'change'].forEach((evt) => { [els.protocolo, els.trial, els.momento, els.momentosLista].forEach((el) => el.addEventListener(evt, refreshSuggestedFileName)); });
-els.fileName.addEventListener('input', () => { state.fileNameTouched = true; });
-els.slidesPorGrupo.addEventListener('input', renderGroupPreview);
-els.nombresGrupos.addEventListener('change', renderPhotoList);
-els.identificacionModo.addEventListener('change', renderPhotoList);
-els.momentMode.addEventListener('change', updateMomentModeUI);
-els.momentosLista.addEventListener('change', () => { renderDropZones(); renderPhotoList(); });
-els.momentosLista.addEventListener('input', () => { renderDropZones(); renderPhotoList(); });
-els.momento.addEventListener('input', renderDropZones);
-els.fecha.addEventListener('change', renderDropZones);
-els.downloadPptx.addEventListener('click', generatePptx);
+  slide = pptx.addSlide();
+  addCover(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
 
-updateMomentModeUI();
-refreshSuggestedFileName();
-renderDropZones();
-renderPhotoList();
+  for(const treatment of meta.treatments){
+    slide = pptx.addSlide();
+    addCover(slide, meta, treatment.name, "Tratamiento");
+    const photosTreat = state.photos.filter(p => p.treatmentId === treatment.id);
+    const byMoment = meta.moments.flatMap(m => photosTreat.filter(p => p.momentId === m.id));
+    for(const group of chunk(byMoment, meta.photosPerSlide)){
+      slide = pptx.addSlide();
+      const labels = group.map(p => (meta.moments.find(m => m.id === p.momentId) || {}).name || "");
+      const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Tratamiento: ${treatment.name}`;
+      addPhotoRow(slide, group, labels, footer, meta);
+    }
+  }
+
+  return await pptx.write("blob");
+}
+
+function downloadBlob(blob, fileName){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2500);
+}
+async function downloadPhotos(){
+  if(!state.photos.length){ alert("Primero cargá fotos."); return; }
+  setStatus("Generando ZIP de fotos...");
+  const zip = await createPhotosZip();
+  const blob = await zip.generateAsync({type:"blob"});
+  downloadBlob(blob, sanitizeFileName(els.fileName.value || todayName()) + "_fotos.zip");
+  setStatus("ZIP de fotos descargado.");
+}
+async function downloadPpt(){
+  if(!state.photos.length){ alert("Primero cargá fotos."); return; }
+  setStatus("Generando PowerPoint...");
+  const blob = await createPptBlob();
+  downloadBlob(blob, sanitizeFileName(els.fileName.value || todayName()) + ".pptx");
+  setStatus("PowerPoint descargado.");
+}
+async function downloadAll(){
+  if(!state.photos.length){ alert("Primero cargá fotos."); return; }
+  setStatus("Generando descarga completa...");
+  const zip = new JSZip();
+  const photosZip = await createPhotosZip();
+  const photosBlob = await photosZip.generateAsync({type:"blob"});
+  const pptBlob = await createPptBlob();
+  const base = sanitizeFileName(els.fileName.value || todayName());
+  zip.file(base + "_fotos.zip", photosBlob);
+  zip.file(base + ".pptx", pptBlob);
+  const finalBlob = await zip.generateAsync({type:"blob"});
+  downloadBlob(finalBlob, base + "_descarga_completa.zip");
+  setStatus("Descarga completa generada.");
+}
+function setStatus(text){
+  if(els.exportStatus) els.exportStatus.textContent = text;
+}
+
+const saveProject = debounce(async ()=>{
+  if(!state.hydrated) return;
+  const project = {
+    meta: {
+      protocolo: els.protocolo.value,
+      trial: els.trial.value,
+      localidad: els.localidad.value,
+      photosPerSlide: els.photosPerSlide.value,
+      treatmentsInput: els.treatmentsInput.value,
+      momentsInput: els.momentsInput.value,
+      qualityMode: els.qualityMode.value,
+      labelStyle: els.labelStyle.value,
+      fileName: els.fileName.value
+    },
+    backgroundSrc: state.backgroundSrc,
+    photos: state.photos,
+    step: state.step
+  };
+  await dbSet(PROJECT_KEY, project);
+}, 500);
+
+async function loadProject(){
+  const project = await dbGet(PROJECT_KEY);
+  if(!project){
+    state.hydrated = true;
+    renderAll();
+    return;
+  }
+  const m = project.meta || {};
+  els.protocolo.value = m.protocolo || "";
+  els.trial.value = m.trial || "";
+  els.localidad.value = m.localidad || "";
+  els.photosPerSlide.value = m.photosPerSlide || "3";
+  els.treatmentsInput.value = m.treatmentsInput || "";
+  els.momentsInput.value = m.momentsInput || "";
+  els.qualityMode.value = m.qualityMode || "original";
+  els.labelStyle.value = m.labelStyle || "technical";
+  els.fileName.value = m.fileName || "Etiquetador_Fotos";
+  state.backgroundSrc = project.backgroundSrc || DEFAULT_BACKGROUND_URL;
+  state.photos = Array.isArray(project.photos) ? project.photos : [];
+  els.backgroundPreview.src = state.backgroundSrc;
+  state.hydrated = true;
+  renderAll();
+  setStep(project.step || 1);
+}
+
+function bindEvents(){
+  els.btnStart.addEventListener("click",()=>setStep(1));
+  els.btnClearProject.addEventListener("click", async ()=>{
+    if(!confirm("¿Seguro que querés limpiar el proyecto guardado?")) return;
+    await dbDelete(PROJECT_KEY);
+    location.reload();
+  });
+  els.progressTabs.forEach(tab => tab.addEventListener("click",()=>{
+    const target = Number(tab.dataset.step);
+    if(target > 1 && !validateConfig()) return;
+    setStep(target);
+  }));
+  els.btnGoPhotos.addEventListener("click",()=>{
+    if(!validateConfig()) return;
+    renderAll();
+    setStep(2);
+  });
+  els.btnBackConfig.addEventListener("click",()=>setStep(1));
+  els.btnBackPhotos.addEventListener("click",()=>setStep(2));
+  els.btnAutoAssign.addEventListener("click", autoAssignTreatments);
+  els.btnDownloadPhotos.addEventListener("click",()=>downloadPhotos().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar fotos.");}));
+  els.btnDownloadPpt.addEventListener("click",()=>downloadPpt().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar PPT.");}));
+  els.btnDownloadAll.addEventListener("click",()=>downloadAll().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al generar descarga completa.");}));
+  els.btnChangeBg.addEventListener("click",()=>els.bgInput.click());
+  els.btnResetBg.addEventListener("click",()=>{
+    state.backgroundSrc = DEFAULT_BACKGROUND_URL;
+    els.backgroundPreview.src = DEFAULT_BACKGROUND_URL;
+    saveProject();
+  });
+  els.bgInput.addEventListener("change", async e=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    state.backgroundSrc = await normalizeImageFile(file);
+    els.backgroundPreview.src = state.backgroundSrc;
+    saveProject();
+  });
+  ["input","change"].forEach(evt=>{
+    [els.protocolo,els.trial,els.localidad,els.photosPerSlide,els.treatmentsInput,els.momentsInput,els.qualityMode,els.labelStyle,els.fileName].forEach(el=>{
+      el.addEventListener(evt,()=>{ renderAll(); saveProject(); });
+    });
+  });
+}
+
+bindEvents();
+loadProject();
