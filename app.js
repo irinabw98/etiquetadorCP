@@ -94,8 +94,7 @@ function debounce(fn, wait=350){
 
 function parseLines(raw){
   return String(raw || "")
-    .split(/?
-/)
+    .split(/\r?\n/)
     .map(v => v.trim())
     .filter(Boolean);
 }
@@ -154,19 +153,28 @@ function refreshFileNameDefault(force = false){
 
 function setStep(step){
   state.step = step;
-  [els.step1, els.step2].forEach((el, i)=>el.classList.toggle("active", i + 1 === step));
+  const screens = [els.step1, els.step2].filter(Boolean);
+  screens.forEach((el, i) => el.classList.toggle("active", i + 1 === step));
   els.progressTabs.forEach(tab => tab.classList.toggle("active", Number(tab.dataset.step) === step));
-  window.scrollTo({top:0,behavior:"smooth"});
+  window.scrollTo({top:0, behavior:"smooth"});
   saveProject();
 }
 function validateConfig(){
   const m = getMeta();
-  if(!m.protocolo || !m.trial || !m.localidad){ alert("Completá protocolo, trial y localidad."); return false; }
-  if(!m.treatments.length){ alert("Cargá al menos un tratamiento."); return false; }
-  if(!m.moments.length){ alert("Cargá al menos un momento con su fecha."); return false; }
+  if(!m.protocolo || !m.trial || !m.localidad){
+    alert("Completá protocolo, trial y localidad.");
+    return false;
+  }
+  if(!m.treatments.length){
+    alert("Cargá al menos un tratamiento. Recordá: un tratamiento por línea.");
+    return false;
+  }
+  if(!m.moments.length){
+    alert("Cargá al menos un momento. Formato sugerido: 21 DAA | 2026-01-15");
+    return false;
+  }
   return true;
 }
-
 function isHeicFile(file){
   const name = (file?.name || "").toLowerCase();
   const type = (file?.type || "").toLowerCase();
@@ -560,18 +568,6 @@ async function createPhotosZip(){
   return zip;
 }
 
-function suggestedBaseFileName(){
-  const meta = getMeta();
-  const momentPart = meta.moments.length === 1 ? meta.moments[0].name : "momentos";
-  return sanitizeFileName(`${meta.protocolo}_${meta.trial}_${meta.localidad}_${momentPart}`);
-}
-function refreshFileNameDefault(){
-  const suggested = suggestedBaseFileName();
-  if(!els.fileName.value || els.fileName.value === "Etiquetador_Fotos"){
-    els.fileName.value = suggested;
-  }
-}
-
 function addCover(slide, meta, title, subtitle){
   addBackground(slide, meta);
   slide.addShape("rect",{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"E7DEF5"}});
@@ -770,42 +766,59 @@ async function loadProject(){
 }
 
 function bindEvents(){
-  els.btnStart.addEventListener("click",()=>setStep(1));
-  els.btnClearProject.addEventListener("click", async ()=>{
+  if(els.btnStart) els.btnStart.addEventListener("click",()=>setStep(1));
+
+  if(els.btnClearProject) els.btnClearProject.addEventListener("click", async ()=>{
     if(!confirm("¿Seguro que querés limpiar el proyecto guardado?")) return;
     await dbDelete(PROJECT_KEY);
     location.reload();
   });
+
   els.progressTabs.forEach(tab => tab.addEventListener("click",()=>{
     const target = Number(tab.dataset.step);
     if(target > 1 && !validateConfig()) return;
     setStep(target);
   }));
-  els.btnGoPhotos.addEventListener("click",()=>{
+
+  if(els.btnGoPhotos) els.btnGoPhotos.addEventListener("click",()=>{
     if(!validateConfig()) return;
     renderAll();
     setStep(2);
   });
-  els.btnBackConfig.addEventListener("click",()=>setStep(1));
-    els.btnAutoAssign.addEventListener("click", autoAssignTreatments);
-  els.btnDownloadPhotos.addEventListener("click",()=>downloadPhotos().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar fotos.");}));
-  els.btnDownloadPpt.addEventListener("click",()=>downloadPpt().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar PPT.");}));
-  els.btnDownloadAll.addEventListener("click",()=>downloadAll().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al generar descarga completa.");}));
-  els.btnChangeBg.addEventListener("click",()=>els.bgInput.click());
-  els.btnResetBg.addEventListener("click",()=>{
+
+  if(els.btnBackConfig) els.btnBackConfig.addEventListener("click",()=>setStep(1));
+  if(els.btnAutoAssign) els.btnAutoAssign.addEventListener("click", autoAssignTreatments);
+
+  if(els.btnDownloadPhotos) els.btnDownloadPhotos.addEventListener("click",()=>downloadPhotos().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar fotos.");}));
+  if(els.btnDownloadPpt) els.btnDownloadPpt.addEventListener("click",()=>downloadPpt().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar PPT.");}));
+  if(els.btnDownloadAll) els.btnDownloadAll.addEventListener("click",()=>downloadAll().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al generar descarga completa.");}));
+
+  if(els.btnChangeBg) els.btnChangeBg.addEventListener("click",()=>els.bgInput.click());
+  if(els.btnResetBg) els.btnResetBg.addEventListener("click",()=>{
     state.backgroundSrc = DEFAULT_BACKGROUND_URL;
-    els.backgroundPreview.src = DEFAULT_BACKGROUND_URL;
+    if(els.backgroundPreview) els.backgroundPreview.src = DEFAULT_BACKGROUND_URL;
     saveProject();
   });
-  els.bgInput.addEventListener("change", async e=>{
+  if(els.bgInput) els.bgInput.addEventListener("change", async e=>{
     const file = e.target.files?.[0];
     if(!file) return;
     state.backgroundSrc = await normalizeImageFile(file);
-    els.backgroundPreview.src = state.backgroundSrc;
+    if(els.backgroundPreview) els.backgroundPreview.src = state.backgroundSrc;
     saveProject();
   });
+
   ["input","change"].forEach(evt=>{
-    [els.protocolo,els.trial,els.localidad,els.photosPerSlide,els.treatmentsInput,els.momentsInput,els.qualityMode,els.labelStyle,els.fileName].forEach(el=>{
+    [
+      els.protocolo,
+      els.trial,
+      els.localidad,
+      els.photosPerSlide,
+      els.treatmentsInput,
+      els.momentsInput,
+      els.qualityMode,
+      els.labelStyle,
+      els.fileName
+    ].filter(Boolean).forEach(el=>{
       el.addEventListener(evt,()=>{ renderAll(); saveProject(); });
     });
   });
@@ -813,3 +826,10 @@ function bindEvents(){
 
 bindEvents();
 loadProject();
+
+
+window.addEventListener("error", (event) => {
+  console.error("Error general:", event.error || event.message);
+  const box = document.getElementById("exportStatus");
+  if(box) box.textContent = "Error detectado: " + (event.message || "revisar consola");
+});

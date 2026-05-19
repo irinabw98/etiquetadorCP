@@ -103,3 +103,16 @@ Así las nuevas fotos se guardan como JPG.
 - Se eliminaron las subcarátulas por momento y por tratamiento.
 - En las slides, el nombre de tratamiento o momento aparece debajo de cada foto, no arriba.
 - Se corrigió el nombre automático del archivo: `protocolo_trial_localidad_momento` o `protocolo_trial_localidad_momentos`.
+
+
+## Corrección v5
+
+- Se corrigió la navegación del botón `Continuar a fotos y exportación`.
+- Se hizo más robusto el paso 2.
+- Se eliminaron referencias a elementos inexistentes del paso 3 anterior.
+
+
+## Corrección v6
+
+- Se corrigió un error de sintaxis en `app.js` que impedía que cargara la lógica de la aplicación.
+- El botón `Continuar a fotos y exportación` vuelve a funcionar.
