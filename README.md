@@ -124,3 +124,11 @@ Así las nuevas fotos se guardan como JPG.
 - El nombre base por defecto se fuerza al entrar a fotos/exportación y antes de descargar.
 - El nombre base se arma como `protocolo_trial_localidad_momento` o, si hay varios momentos, concatena todos los momentos.
 - La carpeta interna del ZIP de fotos usa el mismo nombre base.
+
+
+## Cambios de la versión v8
+
+- Se mantuvo el recuadro inferior general del PowerPoint en aproximadamente 20 cm.
+- Se restauró el tamaño de letra del footer general al valor anterior.
+- Se agregó el botón `Vaciar fotos`, que elimina solo las fotos cargadas y conserva la configuración.
+- El nombre de archivo puede editarse manualmente y ya no se fuerza el nombre automático al descargar.
