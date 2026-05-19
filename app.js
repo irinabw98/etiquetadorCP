@@ -92,7 +92,10 @@ function debounce(fn, wait=350){
 }
 
 function parseLines(raw){
-  return String(raw || "").split(/\r?\n|,/).map(v => v.trim()).filter(Boolean);
+  return String(raw || "")
+    .split(/\r?\n/)
+    .map(v => v.trim())
+    .filter(Boolean);
 }
 function parseMoments(raw){
   return String(raw || "").split(/\r?\n/).map(line => line.trim()).filter(Boolean).map((line, idx)=>{
@@ -190,6 +193,20 @@ function dataUrlToBlob(dataUrl){
   const arr = new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
   return new Blob([arr], { type:mime });
+}
+async function urlToDataUrl(url){
+  if(!url || String(url).startsWith("data:")) return url;
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return fileToDataUrl(blob);
+}
+async function getBackgroundForPpt(meta){
+  try{
+    return await urlToDataUrl(meta.backgroundSrc || DEFAULT_BACKGROUND_URL);
+  }catch(error){
+    console.warn("No se pudo convertir el fondo para PPT", error);
+    return "";
+  }
 }
 async function maybeCompressImage(dataUrl, mode){
   if(mode === "original") return dataUrl;
@@ -417,6 +434,7 @@ function estimatePptSlides(){
   return slides;
 }
 function renderAll(){
+  refreshFileNameDefault();
   renderDropZones();
   renderStats();
   renderAssignmentPreview();
@@ -458,33 +476,46 @@ async function makeLabeledImage(photo, meta){
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img,0,0,canvas.width,canvas.height);
 
-  const lines = buildLabelLines(photo, meta);
-  const pad = Math.max(16, Math.round(canvas.width * .018));
-  const fontSize = Math.max(22, Math.round(canvas.width * .024));
-  const lineH = Math.round(fontSize * 1.28);
-  const bandH = Math.min(Math.round(canvas.height * .32), Math.max(lineH * lines.length + pad * 2, Math.round(canvas.height * .16)));
+  const moment = meta.moments.find(m => m.id === photo.momentId) || {};
+  const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
+  const fields = [
+    ["Protocolo", meta.protocolo],
+    ["Trial", meta.trial],
+    ["Localidad", meta.localidad],
+    ["Momento", moment.name || ""],
+    ["Fecha", moment.date || ""],
+    ["Tratamiento", treatment.name || ""]
+  ];
 
-  ctx.fillStyle = meta.labelStyle === "institutional" ? "rgba(6,59,104,.90)" : "rgba(255,255,255,.92)";
-  ctx.fillRect(0, canvas.height - bandH, canvas.width, bandH);
-  ctx.fillStyle = meta.labelStyle === "institutional" ? "#FFFFFF" : "#102033";
-  ctx.font = `700 ${fontSize}px Arial, sans-serif`;
-  ctx.textBaseline = "top";
+  const padX = Math.max(14, Math.round(canvas.width * .014));
+  const fontSize = Math.max(13, Math.round(canvas.width * .014));
+  const labelFontSize = Math.max(11, Math.round(fontSize * .78));
+  const bandH = Math.max(Math.round(fontSize * 2.55), Math.round(canvas.height * .062));
+  const y0 = canvas.height - bandH;
 
-  if(lines.length === 1){
-    let text = lines[0];
-    while(ctx.measureText(text).width > canvas.width - pad*2 && text.length > 10) text = text.slice(0,-2) + "…";
-    ctx.fillText(text, pad, canvas.height - bandH + (bandH-fontSize)/2);
-  }else{
-    const cols = 2;
-    const colW = (canvas.width - pad*2) / cols;
-    lines.forEach((line, idx)=>{
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      let text = line;
-      while(ctx.measureText(text).width > colW - pad && text.length > 10) text = text.slice(0,-2) + "…";
-      ctx.fillText(text, pad + col*colW, canvas.height - bandH + pad + row*lineH);
-    });
-  }
+  ctx.fillStyle = "rgba(255,255,255,.94)";
+  ctx.fillRect(0, y0, canvas.width, bandH);
+  ctx.strokeStyle = "rgba(53,24,94,.22)";
+  ctx.lineWidth = Math.max(1, Math.round(canvas.width * .001));
+  ctx.beginPath();
+  ctx.moveTo(0, y0);
+  ctx.lineTo(canvas.width, y0);
+  ctx.stroke();
+
+  const colW = (canvas.width - padX * 2) / fields.length;
+  fields.forEach(([label, value], idx) => {
+    const x = padX + idx * colW;
+    ctx.fillStyle = "#6f6680";
+    ctx.font = `800 ${labelFontSize}px Arial, sans-serif`;
+    ctx.textBaseline = "top";
+    ctx.fillText(label + ":", x, y0 + Math.round(bandH * .18));
+
+    ctx.fillStyle = "#24113f";
+    ctx.font = `900 ${fontSize}px Arial, sans-serif`;
+    let text = String(value || "");
+    while(ctx.measureText(text).width > colW - 8 && text.length > 8) text = text.slice(0,-2) + "…";
+    ctx.fillText(text, x, y0 + Math.round(bandH * .50));
+  });
 
   const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
   const quality = meta.qualityMode === "light" ? .82 : .95;
@@ -495,17 +526,37 @@ async function createPhotosZip(){
   const meta = getMeta();
   const zip = new JSZip();
   const folder = zip.folder("fotos_etiquetadas");
+  const usedNames = new Map();
+
   for(let i=0;i<state.photos.length;i++){
     const photo = state.photos[i];
     const moment = meta.moments.find(m => m.id === photo.momentId) || {};
     const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
     const labeled = await makeLabeledImage(photo, meta);
     const ext = getMimeFromDataUrl(labeled).includes("png") ? "png" : "jpg";
-    const name = sanitizeFileName(`${String(i+1).padStart(3,"0")}_${meta.protocolo}_${meta.trial}_${moment.name}_${treatment.name}`) + "." + ext;
+
+    const baseName = sanitizeFileName(`${meta.protocolo}_${meta.trial}_${meta.localidad}_${moment.name}_${treatment.name}`);
+    const currentCount = usedNames.get(baseName) || 0;
+    usedNames.set(baseName, currentCount + 1);
+    const suffix = currentCount === 0 ? "" : `_foto_${currentCount + 1}`;
+    const name = `${baseName}${suffix}.${ext}`;
+
     folder.file(name, dataUrlToBlob(labeled));
     setStatus(`Generando fotos ${i+1}/${state.photos.length}...`);
   }
   return zip;
+}
+
+function suggestedBaseFileName(){
+  const meta = getMeta();
+  const momentPart = meta.moments.length === 1 ? meta.moments[0].name : "momentos";
+  return sanitizeFileName(`${meta.protocolo}_${meta.trial}_${meta.localidad}_${momentPart}`);
+}
+function refreshFileNameDefault(){
+  const suggested = suggestedBaseFileName();
+  if(!els.fileName.value || els.fileName.value === "Etiquetador_Fotos"){
+    els.fileName.value = suggested;
+  }
 }
 
 function addCover(slide, meta, title, subtitle){
@@ -516,7 +567,7 @@ function addCover(slide, meta, title, subtitle){
   slide.addText(`Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}`,{x:1.25,y:3.75,w:10.7,h:.45,fontSize:12,color:"66788A",align:"center",fit:"shrink"});
 }
 function addBackground(slide, meta){
-  if(meta.backgroundSrc) slide.addImage({data:meta.backgroundSrc,x:0,y:0,w:13.333,h:7.5});
+  if(meta.pptBackgroundSrc) slide.addImage({data:meta.pptBackgroundSrc,x:0,y:0,w:13.333,h:7.5});
   else slide.background = { color:"FFFFFF" };
 }
 function addFooter(slide, text){
@@ -543,6 +594,7 @@ async function createPptBlob(){
   const PptxConstructor = window.pptxgenjs || window.PptxGenJS || window.pptxgen;
   if(typeof PptxConstructor !== "function") throw new Error("No se cargó PptxGenJS. Verificá que el archivo pptxgen.bundle.js esté en la misma carpeta que index.html.");
   const meta = getMeta();
+  meta.pptBackgroundSrc = await getBackgroundForPpt(meta);
   const pptx = new PptxConstructor();
   window.pptx = pptx;
   pptx.layout = "LAYOUT_WIDE";

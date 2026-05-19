@@ -85,3 +85,12 @@ Ajustes > Cámara > Formatos > Más compatible
 ```
 
 Así las nuevas fotos se guardan como JPG.
+
+
+## Cambios de la versión v3
+
+- Los tratamientos se separan únicamente por salto de línea, no por coma.
+- El fondo `fondo-default.jpg` se convierte internamente a base64 antes de insertarlo en el PowerPoint.
+- Las fotos descargadas tienen etiqueta técnica fina en la parte inferior.
+- Los nombres de las fotos ya no llevan numeración inicial.
+- El nombre sugerido del archivo usa `protocolo_trial_localidad_momento`; si hay más de un momento, usa `protocolo_trial_localidad_momentos`.
