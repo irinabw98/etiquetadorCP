@@ -18,8 +18,7 @@ const els = {
   progressTabs: Array.from(document.querySelectorAll(".progress-tab")),
   step1: $("step1"),
   step2: $("step2"),
-  step3: $("step3"),
-  protocolo: $("protocolo"),
+    protocolo: $("protocolo"),
   trial: $("trial"),
   localidad: $("localidad"),
   photosPerSlide: $("photosPerSlide"),
@@ -45,7 +44,6 @@ const els = {
   btnDownloadPhotos: $("btnDownloadPhotos"),
   btnDownloadPpt: $("btnDownloadPpt"),
   btnDownloadAll: $("btnDownloadAll"),
-  btnBackPhotos: $("btnBackPhotos"),
   exportStatus: $("exportStatus")
 };
 
@@ -140,7 +138,7 @@ function todayName(){
 
 function setStep(step){
   state.step = step;
-  [els.step1, els.step2, els.step3].forEach((el, i)=>el.classList.toggle("active", i + 1 === step));
+  [els.step1, els.step2].forEach((el, i)=>el.classList.toggle("active", i + 1 === step));
   els.progressTabs.forEach(tab => tab.classList.toggle("active", Number(tab.dataset.step) === step));
   window.scrollTo({top:0,behavior:"smooth"});
   saveProject();
@@ -512,7 +510,7 @@ async function createPhotosZip(){
 
 function addCover(slide, meta, title, subtitle){
   addBackground(slide, meta);
-  slide.addShape(pptx.ShapeType.rect,{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"DCE7EF"}});
+  slide.addShape("rect",{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"DCE7EF"}});
   slide.addText(title,{x:1.05,y:2.15,w:11.1,h:.65,fontFace:"Arial",fontSize:30,bold:true,color:"063B68",align:"center"});
   slide.addText(subtitle,{x:1.25,y:2.95,w:10.7,h:.6,fontFace:"Arial",fontSize:16,bold:true,color:"102033",align:"center",fit:"shrink"});
   slide.addText(`Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}`,{x:1.25,y:3.75,w:10.7,h:.45,fontSize:12,color:"66788A",align:"center",fit:"shrink"});
@@ -522,7 +520,7 @@ function addBackground(slide, meta){
   else slide.background = { color:"FFFFFF" };
 }
 function addFooter(slide, text){
-  slide.addShape(pptx.ShapeType.rect,{x:.55,y:6.88,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"DCE7EF"}});
+  slide.addShape("rect",{x:.55,y:6.88,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"DCE7EF"}});
   slide.addText(text,{x:.72,y:6.98,w:11.9,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"063B68",align:"center",fit:"shrink"});
 }
 function addPhotoRow(slide, photos, topLabels, footerText, meta){
@@ -536,15 +534,16 @@ function addPhotoRow(slide, photos, topLabels, footerText, meta){
     const x = area.x + i*(cellW+gap);
     slide.addText(topLabels[i] || "",{x,y:.82,w:cellW,h:.28,fontFace:"Arial",fontSize:11,bold:true,color:"063B68",align:"center",fit:"shrink"});
     const fit = fitContain(photo.width, photo.height, cellW, cellH);
-    slide.addShape(pptx.ShapeType.rect,{x,y:area.y,w:cellW,h:cellH,fill:{color:"FFFFFF",transparency:0},line:{color:"DCE7EF"}});
+    slide.addShape("rect",{x,y:area.y,w:cellW,h:cellH,fill:{color:"FFFFFF",transparency:0},line:{color:"DCE7EF"}});
     slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h});
   });
   addFooter(slide, footerText);
 }
 async function createPptBlob(){
-  if(typeof pptxgen === "undefined") throw new Error("No se cargó PptxGenJS.");
+  const PptxConstructor = window.pptxgenjs || window.PptxGenJS || window.pptxgen;
+  if(typeof PptxConstructor !== "function") throw new Error("No se cargó PptxGenJS. Verificá que el archivo pptxgen.bundle.js esté en la misma carpeta que index.html.");
   const meta = getMeta();
-  const pptx = new pptxgen();
+  const pptx = new PptxConstructor();
   window.pptx = pptx;
   pptx.layout = "LAYOUT_WIDE";
   pptx.author = "Etiquetador de fotos";
@@ -697,8 +696,7 @@ function bindEvents(){
     setStep(2);
   });
   els.btnBackConfig.addEventListener("click",()=>setStep(1));
-  els.btnBackPhotos.addEventListener("click",()=>setStep(2));
-  els.btnAutoAssign.addEventListener("click", autoAssignTreatments);
+    els.btnAutoAssign.addEventListener("click", autoAssignTreatments);
   els.btnDownloadPhotos.addEventListener("click",()=>downloadPhotos().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar fotos.");}));
   els.btnDownloadPpt.addEventListener("click",()=>downloadPpt().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al exportar PPT.");}));
   els.btnDownloadAll.addEventListener("click",()=>downloadAll().catch(err=>{console.error(err);alert(err.message || err);setStatus("Error al generar descarga completa.");}));

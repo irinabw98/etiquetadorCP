@@ -1,46 +1,43 @@
-# Etiquetador de fotos
+# Generador de PowerPoint · Etiquetador de fotos
 
-Aplicación web estática para cargar fotos por momento, asignar tratamientos y generar resultados descargables.
+Aplicación web estática y personal para cargar fotos por momento, asignar tratamientos y generar resultados descargables.
 
-## Funciones principales
+## Mensaje de la herramienta
 
-- Carga de fotos por momento mediante cajas de arrastrar y soltar.
-- Autoasignación de tratamientos por bloques consecutivos dentro de cada momento.
-- Persistencia local automática en el navegador mediante IndexedDB.
-- Selector de calidad de imagen:
-  - Calidad original
-  - Alta calidad
-  - Liviano
-- Etiqueta técnica por defecto.
-- Descarga de fotos etiquetadas en ZIP.
-- Descarga de PowerPoint en formato 16:9.
-- Descarga completa con fotos + PowerPoint.
-- PowerPoint con dos sectores:
-  - Sector 1: ordenado por momento.
-  - Sector 2: ordenado por tratamiento.
-- Soporte para JPG, PNG, WebP y HEIC/HEIF si la librería `heic2any` carga correctamente.
+> Si llegaste a esta página, quiero que sepas que es un desarrollo personal hecho con mucho aprendizaje. Espero que te sea útil. ¡Gracias!
 
-## Estructura del repositorio
+## Archivos del repositorio
 
-Subir estos archivos a la raíz del repo:
+Subir todos estos archivos a la raíz del repositorio:
 
 ```text
 index.html
 styles.css
 app.js
-README.md
+pptxgen.bundle.js
 fondo-default.jpg
+README.md
 ```
 
-## Publicación en GitHub Pages
+## Funciones principales
 
-1. Crear o abrir el repositorio en GitHub.
-2. Subir todos los archivos a la raíz.
-3. Ir a `Settings > Pages`.
-4. En `Branch`, elegir `main`.
-5. En carpeta, elegir `/root`.
-6. Guardar.
-7. Abrir la URL publicada por GitHub Pages.
+- Estilo visual violeta.
+- Instrucciones de uso desplegables.
+- Carga de fotos por momento mediante cajas de arrastrar y soltar.
+- Autoasignación de tratamientos por bloques consecutivos dentro de cada momento.
+- Paso único de fotos y exportación.
+- Persistencia local automática en el navegador.
+- Selector de calidad:
+  - Calidad original, seleccionada por defecto.
+  - Alta calidad.
+  - Liviano.
+- Etiqueta técnica por defecto.
+- Descarga de fotos etiquetadas en ZIP.
+- Descarga de PowerPoint en formato 16:9.
+- Descarga completa con fotos + PowerPoint.
+- PowerPoint con dos sectores:
+  - Ordenado por momento.
+  - Ordenado por tratamiento.
 
 ## Uso recomendado
 
@@ -53,36 +50,38 @@ fondo-default.jpg
 28 DAA | 2026-06-03
 ```
 
-4. Continuar a la pantalla de fotos.
+4. Continuar a fotos y exportación.
 5. Arrastrar las fotos dentro de la caja correspondiente a cada momento.
 6. Presionar `Autoasignar tratamientos`.
 7. Revisar o corregir manualmente las asignaciones.
 8. Descargar fotos, PPT o descarga completa.
 
-## Lógica de autoasignación
+## Importante sobre PptxGenJS
 
-Si un momento tiene 9 fotos y hay 3 tratamientos:
+Este paquete incluye `pptxgen.bundle.js` de forma local para evitar el error de carga desde CDN:
 
 ```text
-Fotos 1 a 3   -> Tratamiento 1
-Fotos 4 a 6   -> Tratamiento 2
-Fotos 7 a 9   -> Tratamiento 3
+No se cargó PptxGenJS
 ```
 
-La asignación se hace de forma independiente dentro de cada momento.
+No borrar ese archivo del repositorio.
+
+## Publicación en GitHub Pages
+
+1. Crear o abrir el repositorio.
+2. Subir todos los archivos a la raíz.
+3. Ir a `Settings > Pages`.
+4. En `Branch`, elegir `main`.
+5. En carpeta, elegir `/root`.
+6. Guardar.
+7. Abrir la URL publicada por GitHub Pages.
 
 ## Nota sobre iPhone y HEIC
 
-Si las fotos del iPhone están en formato `.HEIC`, la app intenta convertirlas en el navegador usando `heic2any` desde CDN. Para evitar problemas, en iPhone se recomienda:
+Si las fotos están en `.HEIC`, la app intenta convertirlas con `heic2any` desde CDN. Para evitar problemas, en iPhone conviene configurar:
 
 ```text
 Ajustes > Cámara > Formatos > Más compatible
 ```
 
 Así las nuevas fotos se guardan como JPG.
-
-## Recomendaciones
-
-- Para PowerPoint liviano, usar la calidad `Alta calidad` o `Liviano`.
-- Para conservar máxima resolución, usar `Calidad original`.
-- Para ensayos grandes, cargar las fotos por carpetas/momentos y luego autoasignar tratamientos.
