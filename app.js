@@ -370,6 +370,12 @@ function renderDropZones(){
       await saveProject();
     });
   });
+
+  els.dropZones.querySelectorAll("[data-action='rotate']").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      await rotatePhoto90(btn.dataset.photoId);
+    });
+  });
 }
 function renderPhotoItem(photo, treatments){
   return `
@@ -384,6 +390,7 @@ function renderPhotoItem(photo, treatments){
         <div class="photo-actions">
           <button class="icon-btn" data-action="up" data-photo-id="${escapeHtml(photo.id)}" type="button">↑</button>
           <button class="icon-btn" data-action="down" data-photo-id="${escapeHtml(photo.id)}" type="button">↓</button>
+          <button class="icon-btn" data-action="rotate" data-photo-id="${escapeHtml(photo.id)}" type="button">Rotar ↻</button>
           <button class="icon-btn danger" data-action="remove" data-photo-id="${escapeHtml(photo.id)}" type="button">Eliminar</button>
         </div>
       </div>
@@ -401,6 +408,31 @@ function movePhoto(photoId, delta){
   group[i].order = group[j].order;
   group[j].order = temp;
 }
+
+async function rotatePhoto90(photoId){
+  const photo = state.photos.find(p => p.id === photoId);
+  if(!photo) return;
+
+  const img = await loadImage(photo.dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = photo.height;
+  canvas.height = photo.width;
+
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -photo.width / 2, -photo.height / 2, photo.width, photo.height);
+
+  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
+  photo.dataUrl = canvas.toDataURL(type, .95);
+  const oldW = photo.width;
+  photo.width = photo.height;
+  photo.height = oldW;
+
+  renderAll();
+  await saveProject();
+}
+
 
 function autoAssignTreatments(){
   const moments = getMoments();

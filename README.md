@@ -132,3 +132,10 @@ Así las nuevas fotos se guardan como JPG.
 - Se restauró el tamaño de letra del footer general al valor anterior.
 - Se agregó el botón `Vaciar fotos`, que elimina solo las fotos cargadas y conserva la configuración.
 - El nombre de archivo puede editarse manualmente y ya no se fuerza el nombre automático al descargar.
+
+
+## Cambios de la versión v9
+
+- Las fotos se mantienen en la orientación en la que se cargan.
+- Se agregó el botón `Rotar ↻` en cada foto del paso 2.
+- Al rotar una foto, el cambio se aplica a la vista previa, al PowerPoint y a las fotos etiquetadas descargadas.
