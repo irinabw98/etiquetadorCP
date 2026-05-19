@@ -139,3 +139,13 @@ Así las nuevas fotos se guardan como JPG.
 - Las fotos se mantienen en la orientación en la que se cargan.
 - Se agregó el botón `Rotar ↻` en cada foto del paso 2.
 - Al rotar una foto, el cambio se aplica a la vista previa, al PowerPoint y a las fotos etiquetadas descargadas.
+
+
+## Cambios de la versión v10
+
+- Se corrigió la orientación entre vista previa, PowerPoint y fotos exportadas.
+- Las imágenes ahora conservan exactamente la orientación visible en la página.
+- El botón `Rotar ↻` aplica una rotación visual consistente en:
+  - vista previa,
+  - PowerPoint,
+  - fotos etiquetadas exportadas.

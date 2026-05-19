@@ -413,21 +413,7 @@ async function rotatePhoto90(photoId){
   const photo = state.photos.find(p => p.id === photoId);
   if(!photo) return;
 
-  const img = await loadImage(photo.dataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = photo.height;
-  canvas.height = photo.width;
-
-  const ctx = canvas.getContext("2d");
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(img, -photo.width / 2, -photo.height / 2, photo.width, photo.height);
-
-  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
-  photo.dataUrl = canvas.toDataURL(type, .95);
-  const oldW = photo.width;
-  photo.width = photo.height;
-  photo.height = oldW;
+  photo.rotation = ((photo.rotation || 0) + 90) % 360;
 
   renderAll();
   await saveProject();
@@ -552,7 +538,11 @@ async function makeLabeledImage(photo, meta){
   canvas.width = photo.width;
   canvas.height = photo.height;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img,0,0,canvas.width,canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(((photo.rotation || 0) * Math.PI) / 180);
+  ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+  ctx.restore();
 
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -662,7 +652,7 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
     const x = area.x + i*(cellW+gap);
     const fit = fitContain(photo.width, photo.height, cellW, imgH);
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
-    slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h});
+    slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h,rotate:photo.rotation || 0});
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
     slide.addText(bottomLabels[i] || "",{
