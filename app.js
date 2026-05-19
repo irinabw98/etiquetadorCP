@@ -137,15 +137,23 @@ function escapeHtml(value){
 }
 function buildDefaultFileName(){
   const meta = getMeta();
-  const momentPart = meta.moments.length === 1 ? meta.moments[0].name : "momentos";
+  const momentNames = meta.moments.map(m => m.name).filter(Boolean);
+  const momentPart = momentNames.length === 1 ? momentNames[0] : (momentNames.length > 1 ? momentNames.join("_") : "");
   return sanitizeFileName([meta.protocolo, meta.trial, meta.localidad, momentPart].filter(Boolean).join("_"));
 }
 function refreshFileNameDefault(force = false){
   const suggested = buildDefaultFileName();
-  const current = els.fileName.value;
-  if(force || !current || current === "Etiquetador_Fotos" || current.startsWith("Etiquetador_") || current === state.lastSuggestedFileName){
-    els.fileName.value = suggested || "Etiquetador_Fotos";
-    state.lastSuggestedFileName = els.fileName.value;
+  if(!suggested) return;
+  const current = els.fileName ? els.fileName.value : "";
+  const shouldReplace =
+    force ||
+    !current ||
+    current === "Etiquetador_Fotos" ||
+    current === state.lastSuggestedFileName ||
+    current.startsWith("Etiquetador_");
+  if(els.fileName && shouldReplace){
+    els.fileName.value = suggested;
+    state.lastSuggestedFileName = suggested;
   }
 }
 
@@ -546,7 +554,8 @@ async function makeLabeledImage(photo, meta){
 async function createPhotosZip(){
   const meta = getMeta();
   const zip = new JSZip();
-  const folder = zip.folder("fotos_etiquetadas");
+  const folderName = buildDefaultFileName() || "fotos_etiquetadas";
+  const folder = zip.folder(folderName);
   const usedNames = new Map();
 
   for(let i=0;i<state.photos.length;i++){
@@ -587,8 +596,10 @@ function addBackground(slide, meta){
   else slide.background = { color:"FFFFFF" };
 }
 function addFooter(slide, text){
-  slide.addShape("rect",{x:.55,y:6.90,w:12.25,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"E7DEF5"}});
-  slide.addText(text,{x:.72,y:6.995,w:11.9,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"35185E",align:"center",fit:"shrink"});
+  const footerW = 7.85;
+  const footerX = (13.333 - footerW) / 2;
+  slide.addShape("rect",{x:footerX,y:6.90,w:footerW,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"E7DEF5"}});
+  slide.addText(text,{x:footerX+.12,y:6.995,w:footerW-.24,h:.18,fontFace:"Arial",fontSize:8.2,bold:true,color:"35185E",align:"center",fit:"shrink"});
 }
 function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   addBackground(slide, meta);
@@ -691,6 +702,7 @@ async function downloadPhotos(){
   setStatus("Generando ZIP de fotos...");
   const zip = await createPhotosZip();
   const blob = await zip.generateAsync({type:"blob"});
+  refreshFileNameDefault(true);
   downloadBlob(blob, sanitizeFileName(els.fileName.value || buildDefaultFileName()) + "_fotos.zip");
   setStatus("ZIP de fotos descargado.");
 }
@@ -698,6 +710,7 @@ async function downloadPpt(){
   if(!state.photos.length){ alert("Primero cargá fotos."); return; }
   setStatus("Generando PowerPoint...");
   const blob = await createPptBlob();
+  refreshFileNameDefault(true);
   downloadBlob(blob, sanitizeFileName(els.fileName.value || buildDefaultFileName()) + ".pptx");
   setStatus("PowerPoint descargado.");
 }
@@ -708,6 +721,7 @@ async function downloadAll(){
   const photosZip = await createPhotosZip();
   const photosBlob = await photosZip.generateAsync({type:"blob"});
   const pptBlob = await createPptBlob();
+  refreshFileNameDefault(true);
   const base = sanitizeFileName(els.fileName.value || buildDefaultFileName());
   zip.file(base + "_fotos.zip", photosBlob);
   zip.file(base + ".pptx", pptBlob);
@@ -782,6 +796,7 @@ function bindEvents(){
 
   if(els.btnGoPhotos) els.btnGoPhotos.addEventListener("click",()=>{
     if(!validateConfig()) return;
+    refreshFileNameDefault(true);
     renderAll();
     setStep(2);
   });

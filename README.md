@@ -116,3 +116,11 @@ Así las nuevas fotos se guardan como JPG.
 
 - Se corrigió un error de sintaxis en `app.js` que impedía que cargara la lógica de la aplicación.
 - El botón `Continuar a fotos y exportación` vuelve a funcionar.
+
+
+## Cambios de la versión v7
+
+- El recuadro inferior general del PowerPoint ahora mide aproximadamente 20 cm de ancho y queda centrado, para no tapar el logo inferior.
+- El nombre base por defecto se fuerza al entrar a fotos/exportación y antes de descargar.
+- El nombre base se arma como `protocolo_trial_localidad_momento` o, si hay varios momentos, concatena todos los momentos.
+- La carpeta interna del ZIP de fotos usa el mismo nombre base.
