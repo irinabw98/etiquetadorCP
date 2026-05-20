@@ -149,3 +149,10 @@ Así las nuevas fotos se guardan como JPG.
   - vista previa,
   - PowerPoint,
   - fotos etiquetadas exportadas.
+
+
+## Cambios de la versión v11
+
+- Se corrigió la orientación del PowerPoint respecto a la vista previa.
+- Las imágenes rotadas ahora mantienen correctamente sus proporciones y posición dentro del slide.
+- La rotación del PPT ahora coincide visualmente con la orientación mostrada en la página.

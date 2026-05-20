@@ -652,7 +652,30 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
     const x = area.x + i*(cellW+gap);
     const fit = fitContain(photo.width, photo.height, cellW, imgH);
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
-    slide.addImage({data:photo.dataUrl,x:x+fit.x,y:area.y+fit.y,w:fit.w,h:fit.h,rotate:photo.rotation || 0});
+    const rotation = photo.rotation || 0;
+    const rotated = rotation % 180 !== 0;
+
+    let drawW = fit.w;
+    let drawH = fit.h;
+    let drawX = x + fit.x;
+    let drawY = area.y + fit.y;
+
+    if(rotated){
+      const centerX = drawX + drawW / 2;
+      const centerY = drawY + drawH / 2;
+      [drawW, drawH] = [drawH, drawW];
+      drawX = centerX - drawW / 2;
+      drawY = centerY - drawH / 2;
+    }
+
+    slide.addImage({
+      data:photo.dataUrl,
+      x:drawX,
+      y:drawY,
+      w:drawW,
+      h:drawH,
+      rotate:-(photo.rotation || 0)
+    });
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
     slide.addText(bottomLabels[i] || "",{
