@@ -266,6 +266,38 @@ function loadImage(src){
   });
 }
 
+async function bakeImageOrientation(dataUrl, mode){
+  const img = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = img.naturalWidth || img.width;
+  canvas.height = img.naturalHeight || img.height;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const sourceType = getMimeFromDataUrl(dataUrl);
+  const type = sourceType.includes("png") ? "image/png" : "image/jpeg";
+  const quality = mode === "light" ? .82 : .95;
+  return canvas.toDataURL(type, quality);
+}
+
+async function rotateImageDataUrl90(dataUrl, mode){
+  const img = await loadImage(dataUrl);
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = srcH;
+  canvas.height = srcW;
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(img, -srcW / 2, -srcH / 2, srcW, srcH);
+
+  const sourceType = getMimeFromDataUrl(dataUrl);
+  const type = sourceType.includes("png") ? "image/png" : "image/jpeg";
+  const quality = mode === "light" ? .82 : .95;
+  return canvas.toDataURL(type, quality);
+}
+
 async function addPhotoFiles(files, momentId){
   const clean = Array.from(files || []).filter(f => (f.type || "").startsWith("image/") || /\.(heic|heif)$/i.test(f.name || ""));
   if(!clean.length) return;
@@ -274,7 +306,8 @@ async function addPhotoFiles(files, momentId){
   for(const file of clean){
     try{
       const rawDataUrl = await normalizeImageFile(file);
-      const dataUrl = await maybeCompressImage(rawDataUrl, getMeta().qualityMode);
+      const compressedDataUrl = await maybeCompressImage(rawDataUrl, getMeta().qualityMode);
+      const dataUrl = await bakeImageOrientation(compressedDataUrl, getMeta().qualityMode);
       const size = await getImageSize(dataUrl);
       next.push({
         id: crypto.randomUUID ? crypto.randomUUID() : Date.now()+"_"+Math.random(),
@@ -413,10 +446,20 @@ async function rotatePhoto90(photoId){
   const photo = state.photos.find(p => p.id === photoId);
   if(!photo) return;
 
-  photo.rotation = ((photo.rotation || 0) + 90) % 360;
+  try{
+    const rotatedDataUrl = await rotateImageDataUrl90(photo.dataUrl, getMeta().qualityMode);
+    const size = await getImageSize(rotatedDataUrl);
+    photo.dataUrl = rotatedDataUrl;
+    photo.width = size.width;
+    photo.height = size.height;
+    photo.rotation = 0;
 
-  renderAll();
-  await saveProject();
+    renderAll();
+    await saveProject();
+  }catch(error){
+    console.error(error);
+    alert("No se pudo rotar la foto.");
+  }
 }
 
 
@@ -538,11 +581,7 @@ async function makeLabeledImage(photo, meta){
   canvas.width = photo.width;
   canvas.height = photo.height;
   const ctx = canvas.getContext("2d");
-  ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(((photo.rotation || 0) * Math.PI) / 180);
-  ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
-  ctx.restore();
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -589,6 +628,7 @@ async function makeLabeledImage(photo, meta){
   const quality = meta.qualityMode === "light" ? .82 : .95;
   return canvas.toDataURL(type, quality);
 }
+
 
 async function createPhotosZip(){
   const meta = getMeta();
@@ -652,29 +692,12 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
     const x = area.x + i*(cellW+gap);
     const fit = fitContain(photo.width, photo.height, cellW, imgH);
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
-    const rotation = photo.rotation || 0;
-    const rotated = rotation % 180 !== 0;
-
-    let drawW = fit.w;
-    let drawH = fit.h;
-    let drawX = x + fit.x;
-    let drawY = area.y + fit.y;
-
-    if(rotated){
-      const centerX = drawX + drawW / 2;
-      const centerY = drawY + drawH / 2;
-      [drawW, drawH] = [drawH, drawW];
-      drawX = centerX - drawW / 2;
-      drawY = centerY - drawH / 2;
-    }
-
     slide.addImage({
       data:photo.dataUrl,
-      x:drawX,
-      y:drawY,
-      w:drawW,
-      h:drawH,
-      rotate:-(photo.rotation || 0)
+      x:x + fit.x,
+      y:area.y + fit.y,
+      w:fit.w,
+      h:fit.h
     });
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
