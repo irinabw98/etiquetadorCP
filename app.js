@@ -222,12 +222,24 @@ function getMimeFromDataUrl(dataUrl){
   return match ? match[1] : "image/jpeg";
 }
 function dataUrlToBlob(dataUrl){
-  const [head, body] = dataUrl.split(",");
-  const mime = (head.match(/:(.*?);/) || [,"application/octet-stream"])[1];
-  const bin = atob(body);
-  const arr = new Uint8Array(bin.length);
-  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
-  return new Blob([arr], { type:mime });
+  const arr = String(dataUrl || "").split(",");
+  if(arr.length < 2) return new Blob([], { type:"application/octet-stream" });
+
+  const mimeMatch = arr[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+  const bstr = atob(arr[1]);
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+
+  while(n--){
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+
+  return new Blob([u8arr], { type:mime });
+}
+function dataUrlToBase64(dataUrl){
+  const parts = String(dataUrl || "").split(",");
+  return parts.length > 1 ? parts[1] : "";
 }
 async function urlToDataUrl(url){
   if(!url || String(url).startsWith("data:")) return url;
@@ -266,69 +278,6 @@ function loadImage(src){
   });
 }
 
-
-async function canvasImageToDataUrl(canvas, sourceDataUrl, mode){
-  const sourceType = getMimeFromDataUrl(sourceDataUrl);
-  const type = sourceType.includes("png") ? "image/png" : "image/jpeg";
-  const quality = mode === "light" ? .82 : .95;
-  return canvas.toDataURL(type, quality);
-}
-
-async function bakeImageOrientation(dataUrl, mode){
-  const img = await loadImage(dataUrl);
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, w, h);
-  return canvasImageToDataUrl(canvas, dataUrl, mode);
-}
-
-async function rotateImageDataUrl90(dataUrl, mode){
-  const img = await loadImage(dataUrl);
-  const srcW = img.naturalWidth || img.width;
-  const srcH = img.naturalHeight || img.height;
-  const canvas = document.createElement("canvas");
-  canvas.width = srcH;
-  canvas.height = srcW;
-  const ctx = canvas.getContext("2d");
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(Math.PI / 2);
-  ctx.drawImage(img, -srcW / 2, -srcH / 2, srcW, srcH);
-  return canvasImageToDataUrl(canvas, dataUrl, mode);
-}
-
-async function preparePhotoForExport(photo, meta){
-  let dataUrl = await bakeImageOrientation(photo.dataUrl, meta.qualityMode);
-  let size = await getImageSize(dataUrl);
-
-  const savedRotation = ((photo.rotation || 0) % 360 + 360) % 360;
-  const turns = Math.round(savedRotation / 90) % 4;
-
-  for(let i = 0; i < turns; i++){
-    dataUrl = await rotateImageDataUrl90(dataUrl, meta.qualityMode);
-    size = await getImageSize(dataUrl);
-  }
-
-  return {
-    ...photo,
-    dataUrl,
-    width: size.width,
-    height: size.height,
-    rotation: 0
-  };
-}
-
-async function preparePhotosForExport(photos, meta){
-  const prepared = [];
-  for(let i = 0; i < photos.length; i++){
-    prepared.push(await preparePhotoForExport(photos[i], meta));
-  }
-  return prepared;
-}
-
 async function addPhotoFiles(files, momentId){
   const clean = Array.from(files || []).filter(f => (f.type || "").startsWith("image/") || /\.(heic|heif)$/i.test(f.name || ""));
   if(!clean.length) return;
@@ -337,8 +286,7 @@ async function addPhotoFiles(files, momentId){
   for(const file of clean){
     try{
       const rawDataUrl = await normalizeImageFile(file);
-      const compressedDataUrl = await maybeCompressImage(rawDataUrl, getMeta().qualityMode);
-      const dataUrl = await bakeImageOrientation(compressedDataUrl, getMeta().qualityMode);
+      const dataUrl = await maybeCompressImage(rawDataUrl, getMeta().qualityMode);
       const size = await getImageSize(dataUrl);
       next.push({
         id: crypto.randomUUID ? crypto.randomUUID() : Date.now()+"_"+Math.random(),
@@ -477,20 +425,10 @@ async function rotatePhoto90(photoId){
   const photo = state.photos.find(p => p.id === photoId);
   if(!photo) return;
 
-  try{
-    const rotatedDataUrl = await rotateImageDataUrl90(photo.dataUrl, getMeta().qualityMode);
-    const size = await getImageSize(rotatedDataUrl);
-    photo.dataUrl = rotatedDataUrl;
-    photo.width = size.width;
-    photo.height = size.height;
-    photo.rotation = 0;
+  photo.rotation = ((photo.rotation || 0) + 90) % 360;
 
-    renderAll();
-    await saveProject();
-  }catch(error){
-    console.error(error);
-    alert("No se pudo rotar la foto.");
-  }
+  renderAll();
+  await saveProject();
 }
 
 
@@ -607,13 +545,16 @@ function buildLabelLines(photo, meta){
   ];
 }
 async function makeLabeledImage(photo, meta){
-  const exportPhoto = await preparePhotoForExport(photo, meta);
-  const img = await loadImage(exportPhoto.dataUrl);
+  const img = await loadImage(photo.dataUrl);
   const canvas = document.createElement("canvas");
-  canvas.width = exportPhoto.width;
-  canvas.height = exportPhoto.height;
+  canvas.width = photo.width;
+  canvas.height = photo.height;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(((photo.rotation || 0) * Math.PI) / 180);
+  ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
+  ctx.restore();
 
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -656,16 +597,15 @@ async function makeLabeledImage(photo, meta){
     ctx.fillText(text, x, y0 + Math.round(bandH * .50));
   });
 
-  const type = getMimeFromDataUrl(exportPhoto.dataUrl).includes("png") ? "image/png" : "image/jpeg";
+  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
   const quality = meta.qualityMode === "light" ? .82 : .95;
   return canvas.toDataURL(type, quality);
 }
 
-
 async function createPhotosZip(){
   const meta = getMeta();
   const zip = new JSZip();
-  const folderName = buildDefaultFileName() || "fotos_etiquetadas";
+  const folderName = sanitizeFileName(els.fileName.value || buildDefaultFileName() || "fotos_etiquetadas");
   const folder = zip.folder(folderName);
   const usedNames = new Map();
 
@@ -674,20 +614,24 @@ async function createPhotosZip(){
     const moment = meta.moments.find(m => m.id === photo.momentId) || {};
     const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
     const labeled = await makeLabeledImage(photo, meta);
-    const ext = getMimeFromDataUrl(labeled).includes("png") ? "png" : "jpg";
+    const mime = getMimeFromDataUrl(labeled);
+    const ext = mime.includes("png") ? "png" : "jpg";
 
-    const baseName = sanitizeFileName(`${meta.protocolo}_${meta.trial}_${meta.localidad}_${moment.name}_${treatment.name}`);
+    const baseName = sanitizeFileName(`${meta.protocolo}_${meta.trial}_${meta.localidad}_${moment.name || "momento"}_${treatment.name || "sin_tratamiento"}`);
     const currentCount = usedNames.get(baseName) || 0;
     usedNames.set(baseName, currentCount + 1);
     const suffix = currentCount === 0 ? "" : `_foto_${currentCount + 1}`;
     const name = `${baseName}${suffix}.${ext}`;
 
-    folder.file(name, dataUrlToBlob(labeled));
+    const base64 = dataUrlToBase64(labeled);
+    if(!base64) throw new Error("No se pudo preparar una imagen para el ZIP.");
+
+    folder.file(name, base64, { base64:true });
     setStatus(`Generando fotos ${i+1}/${state.photos.length}...`);
   }
+
   return zip;
 }
-
 function addCover(slide, meta, title, subtitle){
   addBackground(slide, meta);
   slide.addShape("rect",{x:.75,y:1.45,w:11.85,h:4.3,fill:{color:"FFFFFF",transparency:8},line:{color:"E7DEF5"}});
@@ -770,7 +714,6 @@ async function createPptBlob(){
   if(typeof PptxConstructor !== "function") throw new Error("No se cargó PptxGenJS. Verificá que el archivo pptxgen.bundle.js esté en la misma carpeta que index.html.");
   const meta = getMeta();
   meta.pptBackgroundSrc = await getBackgroundForPpt(meta);
-  const pptPhotos = await preparePhotosForExport(state.photos, meta);
   const pptx = new PptxConstructor();
   window.pptx = pptx;
   pptx.layout = "LAYOUT_WIDE";
@@ -791,7 +734,7 @@ async function createPptBlob(){
   addSectorVision(slide, meta, "Sector 1", "Fotos ordenadas por momento");
 
   for(const moment of meta.moments){
-    const photosMoment = pptPhotos
+    const photosMoment = state.photos
       .filter(p => p.momentId === moment.id && p.treatmentId)
       .sort((a,b)=>a.order-b.order);
     const byTreat = meta.treatments.flatMap(t => photosMoment.filter(p => p.treatmentId === t.id));
@@ -807,7 +750,7 @@ async function createPptBlob(){
   addSectorVision(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
 
   for(const treatment of meta.treatments){
-    const photosTreat = pptPhotos
+    const photosTreat = state.photos
       .filter(p => p.treatmentId === treatment.id)
       .sort((a,b)=>a.order-b.order);
     const byMoment = meta.moments.flatMap(m => photosTreat.filter(p => p.momentId === m.id));
@@ -836,7 +779,7 @@ async function downloadPhotos(){
   if(!state.photos.length){ alert("Primero cargá fotos."); return; }
   setStatus("Generando ZIP de fotos...");
   const zip = await createPhotosZip();
-  const blob = await zip.generateAsync({type:"blob"});
+  const blob = await zip.generateAsync({type:"blob", compression:"DEFLATE", compressionOptions:{level:6}});
   downloadBlob(blob, sanitizeFileName(els.fileName.value || buildDefaultFileName()) + "_fotos.zip");
   setStatus("ZIP de fotos descargado.");
 }
@@ -852,12 +795,12 @@ async function downloadAll(){
   setStatus("Generando descarga completa...");
   const zip = new JSZip();
   const photosZip = await createPhotosZip();
-  const photosBlob = await photosZip.generateAsync({type:"blob"});
+  const photosBlob = await photosZip.generateAsync({type:"blob", compression:"DEFLATE", compressionOptions:{level:6}});
   const pptBlob = await createPptBlob();
   const base = sanitizeFileName(els.fileName.value || buildDefaultFileName());
-  zip.file(base + "_fotos.zip", photosBlob);
-  zip.file(base + ".pptx", pptBlob);
-  const finalBlob = await zip.generateAsync({type:"blob"});
+  zip.file(base + "_fotos.zip", await photosBlob.arrayBuffer(), { binary:true });
+  zip.file(base + ".pptx", await pptBlob.arrayBuffer(), { binary:true });
+  const finalBlob = await zip.generateAsync({type:"blob", compression:"DEFLATE", compressionOptions:{level:6}});
   downloadBlob(finalBlob, base + "_descarga_completa.zip");
   setStatus("Descarga completa generada.");
 }

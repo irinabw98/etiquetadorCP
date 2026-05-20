@@ -157,10 +157,9 @@ Así las nuevas fotos se guardan como JPG.
 - Las imágenes rotadas ahora mantienen correctamente sus proporciones y posición dentro del slide.
 - La rotación del PPT ahora coincide visualmente con la orientación mostrada en la página.
 
+## Corrección v13
 
-## Cambios de la versión v12
-
-- Se reforzó la corrección de orientación para PowerPoint.
-- Antes de armar el PPT, cada imagen se vuelve a procesar en canvas para eliminar metadatos EXIF de orientación.
-- El PowerPoint usa una copia interna ya normalizada de cada foto, manteniendo la orientación visible en la página.
-- Se conserva la rotación manual aplicada con el botón `Rotar ↻` incluso en proyectos guardados con versiones anteriores.
+- Se corrigió la generación del ZIP de fotos etiquetadas.
+- Las imágenes dentro del ZIP ahora se agregan como base64 limpio para evitar archivos comprimidos inválidos.
+- La descarga completa también incorpora el ZIP de fotos y el PowerPoint como binarios válidos.
+- Se mantiene la corrección de orientación del PowerPoint.
