@@ -266,18 +266,24 @@ function loadImage(src){
   });
 }
 
-async function bakeImageOrientation(dataUrl, mode){
-  const img = await loadImage(dataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = img.naturalWidth || img.width;
-  canvas.height = img.naturalHeight || img.height;
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-  const sourceType = getMimeFromDataUrl(dataUrl);
+async function canvasImageToDataUrl(canvas, sourceDataUrl, mode){
+  const sourceType = getMimeFromDataUrl(sourceDataUrl);
   const type = sourceType.includes("png") ? "image/png" : "image/jpeg";
   const quality = mode === "light" ? .82 : .95;
   return canvas.toDataURL(type, quality);
+}
+
+async function bakeImageOrientation(dataUrl, mode){
+  const img = await loadImage(dataUrl);
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(img, 0, 0, w, h);
+  return canvasImageToDataUrl(canvas, dataUrl, mode);
 }
 
 async function rotateImageDataUrl90(dataUrl, mode){
@@ -291,11 +297,36 @@ async function rotateImageDataUrl90(dataUrl, mode){
   ctx.translate(canvas.width / 2, canvas.height / 2);
   ctx.rotate(Math.PI / 2);
   ctx.drawImage(img, -srcW / 2, -srcH / 2, srcW, srcH);
+  return canvasImageToDataUrl(canvas, dataUrl, mode);
+}
 
-  const sourceType = getMimeFromDataUrl(dataUrl);
-  const type = sourceType.includes("png") ? "image/png" : "image/jpeg";
-  const quality = mode === "light" ? .82 : .95;
-  return canvas.toDataURL(type, quality);
+async function preparePhotoForExport(photo, meta){
+  let dataUrl = await bakeImageOrientation(photo.dataUrl, meta.qualityMode);
+  let size = await getImageSize(dataUrl);
+
+  const savedRotation = ((photo.rotation || 0) % 360 + 360) % 360;
+  const turns = Math.round(savedRotation / 90) % 4;
+
+  for(let i = 0; i < turns; i++){
+    dataUrl = await rotateImageDataUrl90(dataUrl, meta.qualityMode);
+    size = await getImageSize(dataUrl);
+  }
+
+  return {
+    ...photo,
+    dataUrl,
+    width: size.width,
+    height: size.height,
+    rotation: 0
+  };
+}
+
+async function preparePhotosForExport(photos, meta){
+  const prepared = [];
+  for(let i = 0; i < photos.length; i++){
+    prepared.push(await preparePhotoForExport(photos[i], meta));
+  }
+  return prepared;
 }
 
 async function addPhotoFiles(files, momentId){
@@ -576,10 +607,11 @@ function buildLabelLines(photo, meta){
   ];
 }
 async function makeLabeledImage(photo, meta){
-  const img = await loadImage(photo.dataUrl);
+  const exportPhoto = await preparePhotoForExport(photo, meta);
+  const img = await loadImage(exportPhoto.dataUrl);
   const canvas = document.createElement("canvas");
-  canvas.width = photo.width;
-  canvas.height = photo.height;
+  canvas.width = exportPhoto.width;
+  canvas.height = exportPhoto.height;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
@@ -624,7 +656,7 @@ async function makeLabeledImage(photo, meta){
     ctx.fillText(text, x, y0 + Math.round(bandH * .50));
   });
 
-  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
+  const type = getMimeFromDataUrl(exportPhoto.dataUrl).includes("png") ? "image/png" : "image/jpeg";
   const quality = meta.qualityMode === "light" ? .82 : .95;
   return canvas.toDataURL(type, quality);
 }
@@ -692,12 +724,29 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
     const x = area.x + i*(cellW+gap);
     const fit = fitContain(photo.width, photo.height, cellW, imgH);
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
+    const rotation = photo.rotation || 0;
+    const rotated = rotation % 180 !== 0;
+
+    let drawW = fit.w;
+    let drawH = fit.h;
+    let drawX = x + fit.x;
+    let drawY = area.y + fit.y;
+
+    if(rotated){
+      const centerX = drawX + drawW / 2;
+      const centerY = drawY + drawH / 2;
+      [drawW, drawH] = [drawH, drawW];
+      drawX = centerX - drawW / 2;
+      drawY = centerY - drawH / 2;
+    }
+
     slide.addImage({
       data:photo.dataUrl,
-      x:x + fit.x,
-      y:area.y + fit.y,
-      w:fit.w,
-      h:fit.h
+      x:drawX,
+      y:drawY,
+      w:drawW,
+      h:drawH,
+      rotate:-(photo.rotation || 0)
     });
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
@@ -721,6 +770,7 @@ async function createPptBlob(){
   if(typeof PptxConstructor !== "function") throw new Error("No se cargó PptxGenJS. Verificá que el archivo pptxgen.bundle.js esté en la misma carpeta que index.html.");
   const meta = getMeta();
   meta.pptBackgroundSrc = await getBackgroundForPpt(meta);
+  const pptPhotos = await preparePhotosForExport(state.photos, meta);
   const pptx = new PptxConstructor();
   window.pptx = pptx;
   pptx.layout = "LAYOUT_WIDE";
@@ -741,7 +791,7 @@ async function createPptBlob(){
   addSectorVision(slide, meta, "Sector 1", "Fotos ordenadas por momento");
 
   for(const moment of meta.moments){
-    const photosMoment = state.photos
+    const photosMoment = pptPhotos
       .filter(p => p.momentId === moment.id && p.treatmentId)
       .sort((a,b)=>a.order-b.order);
     const byTreat = meta.treatments.flatMap(t => photosMoment.filter(p => p.treatmentId === t.id));
@@ -757,7 +807,7 @@ async function createPptBlob(){
   addSectorVision(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
 
   for(const treatment of meta.treatments){
-    const photosTreat = state.photos
+    const photosTreat = pptPhotos
       .filter(p => p.treatmentId === treatment.id)
       .sort((a,b)=>a.order-b.order);
     const byMoment = meta.moments.flatMap(m => photosTreat.filter(p => p.momentId === m.id));
