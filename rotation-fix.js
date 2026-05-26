@@ -27,8 +27,47 @@ async function maybeCompressImage(dataUrl, mode){
   return canvas.toDataURL("image/jpeg", quality);
 }
 
+function getNormalizedRotation(photo){
+  return ((Number(photo?.rotation || 0) % 360) + 360) % 360;
+}
+
+async function makeRotatedImageData(photo){
+  const img = await loadImage(photo.dataUrl);
+  const rotation = getNormalizedRotation(photo);
+  const baseW = photo.width || img.naturalWidth || img.width;
+  const baseH = photo.height || img.naturalHeight || img.height;
+
+  if(rotation === 0){
+    return {
+      dataUrl: photo.dataUrl,
+      width: baseW,
+      height: baseH
+    };
+  }
+
+  const rotated = rotation % 180 !== 0;
+  const canvas = document.createElement("canvas");
+  canvas.width = rotated ? baseH : baseW;
+  canvas.height = rotated ? baseW : baseH;
+
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.drawImage(img, -baseW / 2, -baseH / 2, baseW, baseH);
+  ctx.restore();
+
+  return {
+    dataUrl: canvas.toDataURL("image/jpeg", .95),
+    width: canvas.width,
+    height: canvas.height
+  };
+}
+
 function renderPhotoItem(photo, treatments){
-  const rotation = Number(photo.rotation || 0);
+  const rotation = getNormalizedRotation(photo);
   const previewStyle = rotation ? `style="transform:rotate(${rotation}deg);"` : "";
   return `
     <div class="photo-item">
@@ -51,22 +90,14 @@ function renderPhotoItem(photo, treatments){
 }
 
 async function makeLabeledImage(photo, meta){
-  const img = await loadImage(photo.dataUrl);
-  const rotation = ((Number(photo.rotation || 0) % 360) + 360) % 360;
-  const rotated = rotation % 180 !== 0;
-
-  const baseW = photo.width || img.naturalWidth || img.width;
-  const baseH = photo.height || img.naturalHeight || img.height;
+  const fixed = await makeRotatedImageData(photo);
+  const img = await loadImage(fixed.dataUrl);
   const canvas = document.createElement("canvas");
-  canvas.width = rotated ? baseH : baseW;
-  canvas.height = rotated ? baseW : baseH;
+  canvas.width = fixed.width;
+  canvas.height = fixed.height;
 
   const ctx = canvas.getContext("2d");
-  ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate((rotation * Math.PI) / 180);
-  ctx.drawImage(img, -baseW / 2, -baseH / 2, baseW, baseH);
-  ctx.restore();
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -113,7 +144,7 @@ async function makeLabeledImage(photo, meta){
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
+async function addPhotoRowAsync(slide, photos, bottomLabels, footerText, meta){
   addBackground(slide, meta);
   const n = photos.length;
   const area = {x:.55,y:1.18,w:12.25,h:5.08};
@@ -121,24 +152,20 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   const gap = .17;
   const cellW = (area.w - gap*(n-1))/n;
   const imgH = area.h - labelH - .08;
+  const fixedPhotos = await Promise.all(photos.map(photo => makeRotatedImageData(photo)));
 
-  photos.forEach((photo, i)=>{
+  fixedPhotos.forEach((fixed, i)=>{
     const x = area.x + i*(cellW+gap);
-    const rotation = ((Number(photo.rotation || 0) % 360) + 360) % 360;
-    const rotated = rotation % 180 !== 0;
-    const fitW = rotated ? photo.height : photo.width;
-    const fitH = rotated ? photo.width : photo.height;
-    const fit = fitContain(fitW, fitH, cellW, imgH);
+    const fit = fitContain(fixed.width, fixed.height, cellW, imgH);
 
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
 
     slide.addImage({
-      data:photo.dataUrl,
+      data:fixed.dataUrl,
       x:x + fit.x,
       y:area.y + fit.y,
       w:fit.w,
-      h:fit.h,
-      rotate:rotation
+      h:fit.h
     });
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
@@ -157,4 +184,69 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   });
 
   addFooter(slide, footerText);
+}
+
+function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
+  addBackground(slide, meta);
+  addFooter(slide, footerText);
+}
+
+async function createPptBlob(){
+  const PptxConstructor = window.pptxgenjs || window.PptxGenJS || window.pptxgen;
+  if(typeof PptxConstructor !== "function") throw new Error("No se cargó PptxGenJS. Verificá que el archivo pptxgen.bundle.js esté en la misma carpeta que index.html.");
+
+  const meta = getMeta();
+  meta.pptBackgroundSrc = await getBackgroundForPpt(meta);
+
+  const pptx = new PptxConstructor();
+  window.pptx = pptx;
+  pptx.layout = "LAYOUT_WIDE";
+  pptx.author = "Etiquetador de fotos";
+  pptx.subject = "Fotos etiquetadas";
+  pptx.title = `${meta.protocolo} ${meta.trial}`;
+  pptx.company = "";
+  pptx.theme = {
+    headFontFace: "Arial",
+    bodyFontFace: "Arial",
+    lang: "es-AR"
+  };
+
+  let slide = pptx.addSlide();
+  addCover(slide, meta, "Resultados", `${meta.protocolo} · ${meta.trial} · ${meta.localidad}`);
+
+  slide = pptx.addSlide();
+  addSectorVision(slide, meta, "Sector 1", "Fotos ordenadas por momento");
+
+  for(const moment of meta.moments){
+    const photosMoment = state.photos
+      .filter(p => p.momentId === moment.id && p.treatmentId)
+      .sort((a,b)=>a.order-b.order);
+    const byTreat = meta.treatments.flatMap(t => photosMoment.filter(p => p.treatmentId === t.id));
+
+    for(const group of chunk(byTreat, meta.photosPerSlide)){
+      slide = pptx.addSlide();
+      const labels = group.map(p => (meta.treatments.find(t => t.id === p.treatmentId) || {}).name || "");
+      const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Momento: ${moment.name}   |   Fecha: ${moment.date || ""}`;
+      await addPhotoRowAsync(slide, group, labels, footer, meta);
+    }
+  }
+
+  slide = pptx.addSlide();
+  addSectorVision(slide, meta, "Sector 2", "Fotos ordenadas por tratamiento");
+
+  for(const treatment of meta.treatments){
+    const photosTreat = state.photos
+      .filter(p => p.treatmentId === treatment.id)
+      .sort((a,b)=>a.order-b.order);
+    const byMoment = meta.moments.flatMap(m => photosTreat.filter(p => p.momentId === m.id));
+
+    for(const group of chunk(byMoment, meta.photosPerSlide)){
+      slide = pptx.addSlide();
+      const labels = group.map(p => (meta.moments.find(m => m.id === p.momentId) || {}).name || "");
+      const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Tratamiento: ${treatment.name}`;
+      await addPhotoRowAsync(slide, group, labels, footer, meta);
+    }
+  }
+
+  return await pptx.write("blob");
 }
