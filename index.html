@@ -12,8 +12,12 @@
       <div>
         <p class="eyebrow">Generador de PowerPoint</p>
         <h1>Etiquetador de fotos</h1>
-        <p class="subtitle">Si llegaste a esta página, quiero que sepas que es un desarrollo personal hecho con mucho aprendizaje. Espero que te sea útil. ¡Gracias!</p>
+        <p class="subtitle">
+          Si llegaste a esta página, quiero que sepas que es un desarrollo personal hecho con mucho aprendizaje.
+          Espero que te sea útil. ¡Gracias!
+        </p>
       </div>
+
       <div class="hero-actions">
         <button class="btn light" id="btnStart" type="button">Comenzar</button>
         <button class="btn ghost-light" id="btnClearProject" type="button">Limpiar proyecto</button>
@@ -28,22 +32,26 @@
         </span>
         <b>Ver / ocultar</b>
       </summary>
+
       <div class="steps-grid">
         <article>
           <span>1</span>
           <h3>Completá los datos</h3>
           <p>Ingresá protocolo, trial, localidad, tratamientos, momentos y fechas.</p>
         </article>
+
         <article>
           <span>2</span>
           <h3>Cargá fotos por momento</h3>
           <p>La app crea una caja por cada momento. Arrastrá las fotos desde la carpeta correspondiente.</p>
         </article>
+
         <article>
           <span>3</span>
           <h3>Autoasigná tratamientos</h3>
           <p>Dentro de cada momento, divide las fotos en bloques consecutivos según la cantidad de tratamientos.</p>
         </article>
+
         <article>
           <span>4</span>
           <h3>Descargá resultados</h3>
@@ -53,12 +61,18 @@
     </details>
 
     <nav class="progress-wrap">
-      <button class="progress-tab active" data-step="1" type="button">1. Configuración</button>
-      <button class="progress-tab" data-step="2" type="button">2. Fotos y exportación</button>
+      <button class="progress-tab active" data-step="1" type="button">
+        1. Configuración
+      </button>
+
+      <button class="progress-tab" data-step="2" type="button">
+        2. Fotos y exportación
+      </button>
     </nav>
 
     <section class="screen active" id="step1">
       <div class="grid two-cols">
+
         <article class="card">
           <div class="section-head">
             <div>
@@ -68,34 +82,52 @@
           </div>
 
           <div class="form-grid">
-            <label>Protocolo
+            <label>
+              Protocolo
               <input id="protocolo" type="text" placeholder="Ej: HP26ARGC01" />
             </label>
-            <label>Trial
+
+            <label>
+              Trial
               <input id="trial" type="text" placeholder="Ej: TRIAL 01" />
             </label>
-            <label>Localidad
+
+            <label>
+              Localidad
               <input id="localidad" type="text" placeholder="Ej: Pergamino" />
             </label>
-            <label>Fotos por slide
+
+            <label>
+              Fotos por slide
               <input id="photosPerSlide" type="number" min="1" max="6" value="3" />
             </label>
           </div>
 
-          <label class="wide-label">Tratamientos
-            <textarea id="treatmentsInput" placeholder="Un tratamiento por línea. Ej:&#10;Testigo&#10;T1&#10;T2"></textarea>
+          <label class="wide-label">
+            Tratamientos
+            <textarea
+              id="treatmentsInput"
+              placeholder="Un tratamiento por línea&#10;Ej:&#10;Testigo&#10;T1&#10;T2"
+            ></textarea>
           </label>
 
-          <label class="wide-label">Momentos y fechas
-            <textarea id="momentsInput" placeholder="Un momento por línea. Usá | para agregar fecha. Ej:&#10;14 DAA | 2026-05-20&#10;28 DAA | 2026-06-03"></textarea>
+          <label class="wide-label">
+            Momentos y fechas
+            <textarea
+              id="momentsInput"
+              placeholder="Un momento por línea&#10;Usá | para agregar fecha&#10;Ej:&#10;14 DAA | 2026-05-20&#10;28 DAA | 2026-06-03"
+            ></textarea>
           </label>
 
           <div class="hint-box">
-            La carga de fotos se hace siempre por momento. Cada caja de carga corresponde a un momento distinto.
+            La carga de fotos se hace siempre por momento.
+            Cada caja de carga corresponde a un momento distinto.
           </div>
 
           <div class="actions right">
-            <button class="btn primary" id="btnGoPhotos" type="button">Continuar a fotos y exportación</button>
+            <button class="btn primary" id="btnGoPhotos" type="button">
+              Continuar a fotos y exportación
+            </button>
           </div>
         </article>
 
@@ -108,14 +140,17 @@
           </div>
 
           <div class="form-grid">
-            <label>Calidad de imágenes
+            <label>
+              Calidad de imágenes
               <select id="qualityMode">
                 <option value="original" selected>Calidad original</option>
                 <option value="high">Alta calidad</option>
                 <option value="light">Liviano</option>
               </select>
             </label>
-            <label>Estilo de etiqueta
+
+            <label>
+              Estilo de etiqueta
               <select id="labelStyle">
                 <option value="technical" selected>Técnica</option>
                 <option value="compact">Compacta</option>
@@ -125,49 +160,80 @@
           </div>
 
           <div class="slide-preview">
-            <img id="backgroundPreview" src="fondo-default.jpg" alt="Fondo de PowerPoint" />
+            <img
+              id="backgroundPreview"
+              src="fondo-default.jpg"
+              alt="Fondo de PowerPoint"
+            />
+
             <div class="preview-strip">
               <strong>Etiqueta técnica</strong>
-              <small>Protocolo · Trial · Localidad · Momento · Fecha · Tratamiento</small>
+              <small>
+                Protocolo · Trial · Localidad · Momento · Fecha · Tratamiento
+              </small>
             </div>
           </div>
 
           <div class="actions wrap">
-            <button class="btn ghost" id="btnChangeBg" type="button">Cambiar fondo PPT</button>
-            <button class="btn soft" id="btnResetBg" type="button">Usar fondo por default</button>
-            <input id="bgInput" class="hidden" type="file" accept="image/*,.heic,.heif" />
+            <button class="btn ghost" id="btnChangeBg" type="button">
+              Cambiar fondo PPT
+            </button>
+
+            <button class="btn soft" id="btnResetBg" type="button">
+              Usar fondo por default
+            </button>
+
+            <input
+              id="bgInput"
+              class="hidden"
+              type="file"
+              accept="image/*,.heic,.heif"
+            />
           </div>
 
           <div class="hint-box">
-            El PowerPoint se genera en formato 16:9. Las fotos se acomodan en una sola fila, con 3 fotos por slide por defecto.
+            El PowerPoint se genera en formato 16:9.
+            Las fotos se acomodan en una sola fila, con 3 fotos por slide por defecto.
           </div>
         </article>
+
       </div>
     </section>
 
     <section class="screen" id="step2">
       <div class="grid photos-grid">
+
         <article class="card">
           <div class="section-head sticky-actions">
             <div>
               <p class="kicker">Carga por momento</p>
               <h2>Arrastrá las fotos a cada caja</h2>
             </div>
+
             <div class="top-actions">
               <span class="counter" id="photoCounter">0 fotos</span>
-              <button class="btn primary" id="btnAutoAssign" type="button">Autoasignar tratamientos</button>
-              <button class="btn soft" id="btnClearPhotos" type="button">Vaciar fotos</button>
+
+              <button class="btn primary" id="btnAutoAssign" type="button">
+                Autoasignar tratamientos
+              </button>
+
+              <button class="btn soft" id="btnClearPhotos" type="button">
+                Vaciar fotos
+              </button>
             </div>
           </div>
 
           <div id="dropZones" class="moment-board"></div>
 
           <div class="actions wrap">
-            <button class="btn ghost" id="btnBackConfig" type="button">Volver a configuración</button>
+            <button class="btn ghost" id="btnBackConfig" type="button">
+              Volver a configuración
+            </button>
           </div>
         </article>
 
         <aside class="side-stack">
+
           <article class="card">
             <div class="section-head">
               <div>
@@ -175,13 +241,17 @@
                 <h2>Resumen</h2>
               </div>
             </div>
+
             <div class="stats">
               <div><span id="momentCount">0</span><small>momentos</small></div>
               <div><span id="treatmentCount">0</span><small>tratamientos</small></div>
               <div><span id="assignedCount">0</span><small>asignadas</small></div>
               <div><span id="pptSlidesCount">0</span><small>slides PPT</small></div>
             </div>
-            <div id="assignmentPreview" class="assignment-preview empty">Sin fotos cargadas todavía.</div>
+
+            <div id="assignmentPreview" class="assignment-preview empty">
+              Sin fotos cargadas todavía.
+            </div>
           </article>
 
           <article class="card export-card">
@@ -192,33 +262,42 @@
               </div>
             </div>
 
-            <label>Nombre base de archivo
+            <label>
+              Nombre base de archivo
               <input id="fileName" type="text" value="Etiquetador_Fotos" />
             </label>
 
             <div class="download-grid">
+
               <button class="download-card" id="btnDownloadPhotos" type="button">
                 <strong>Descargar fotos</strong>
                 <span>ZIP con imágenes etiquetadas</span>
               </button>
+
               <button class="download-card" id="btnDownloadPpt" type="button">
                 <strong>Descargar PPT</strong>
                 <span>PowerPoint con dos sectores</span>
               </button>
+
               <button class="download-card featured" id="btnDownloadAll" type="button">
                 <strong>Descarga completa</strong>
                 <span>ZIP con fotos + PowerPoint</span>
               </button>
+
             </div>
 
-            <div id="exportStatus" class="status-box">Listo para exportar.</div>
+            <div id="exportStatus" class="status-box">
+              Listo para exportar.
+            </div>
           </article>
+
         </aside>
       </div>
     </section>
   </main>
 
   <script src="pptxgen.bundle.js"></script>
+
   <script>
     window.PPTXGEN_READY_NAME =
       typeof window.pptxgenjs === "function" ? "pptxgenjs" :
@@ -226,7 +305,12 @@
       typeof window.pptxgen === "function" ? "pptxgen" :
       "";
   </script>
+
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
   <script src="app.js"></script>
+
+  <script src="rotation-fix.js"></script>
+
 </body>
 </html>
