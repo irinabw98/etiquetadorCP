@@ -256,18 +256,31 @@ async function getBackgroundForPpt(meta){
   }
 }
 async function maybeCompressImage(dataUrl, mode){
-  if(mode === "original") return dataUrl;
-  const size = await getImageSize(dataUrl);
-  const maxSide = mode === "high" ? 2200 : 1400;
-  const ratio = Math.min(1, maxSide / Math.max(size.width, size.height));
-  if(ratio >= 1 && mode === "high") return dataUrl;
   const img = await loadImage(dataUrl);
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+
+  const maxSide =
+    mode === "high" ? 2200 :
+    mode === "light" ? 1400 :
+    Math.max(srcW, srcH);
+
+  const ratio = Math.min(1, maxSide / Math.max(srcW, srcH));
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(size.width * ratio);
-  canvas.height = Math.round(size.height * ratio);
+  canvas.width = Math.max(1, Math.round(srcW * ratio));
+  canvas.height = Math.max(1, Math.round(srcH * ratio));
+
   const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", mode === "high" ? .92 : .78);
+
+  const quality =
+    mode === "light" ? .82 :
+    mode === "high" ? .94 :
+    .96;
+
+  return canvas.toDataURL("image/jpeg", quality);
 }
 function loadImage(src){
   return new Promise((resolve,reject)=>{
@@ -390,9 +403,11 @@ function renderDropZones(){
   });
 }
 function renderPhotoItem(photo, treatments){
+  const rotation = normalizeRotation(photo.rotation || 0);
+  const previewStyle = rotation ? ` style="transform:rotate(${rotation}deg);"` : "";
   return `
     <div class="photo-item">
-      <img src="${photo.dataUrl}" alt="${escapeHtml(photo.fileName)}">
+      <img src="${photo.dataUrl}" alt="${escapeHtml(photo.fileName)}"${previewStyle}>
       <div class="photo-meta">
         <p>${escapeHtml(photo.fileName)}</p>
         <select data-action="treatment" data-photo-id="${escapeHtml(photo.id)}">
@@ -529,6 +544,52 @@ function chunk(arr,size){
   return out;
 }
 
+function normalizeRotation(value){
+  return ((Number(value || 0) % 360) + 360) % 360;
+}
+
+async function makeExportImageData(photo){
+  const img = await loadImage(photo.dataUrl);
+  const rotation = normalizeRotation(photo.rotation || 0);
+  const srcW = photo.width || img.naturalWidth || img.width;
+  const srcH = photo.height || img.naturalHeight || img.height;
+
+  if(rotation === 0){
+    const canvas = document.createElement("canvas");
+    canvas.width = srcW;
+    canvas.height = srcH;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, srcW, srcH);
+    return {
+      dataUrl: canvas.toDataURL("image/jpeg", .96),
+      width: canvas.width,
+      height: canvas.height
+    };
+  }
+
+  const swap = rotation % 180 !== 0;
+  const canvas = document.createElement("canvas");
+  canvas.width = swap ? srcH : srcW;
+  canvas.height = swap ? srcW : srcH;
+
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.save();
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.drawImage(img, -srcW / 2, -srcH / 2, srcW, srcH);
+  ctx.restore();
+
+  return {
+    dataUrl: canvas.toDataURL("image/jpeg", .96),
+    width: canvas.width,
+    height: canvas.height
+  };
+}
+
 function buildLabelLines(photo, meta){
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -545,16 +606,16 @@ function buildLabelLines(photo, meta){
   ];
 }
 async function makeLabeledImage(photo, meta){
-  const img = await loadImage(photo.dataUrl);
+  const fixed = await makeExportImageData(photo);
+  const img = await loadImage(fixed.dataUrl);
   const canvas = document.createElement("canvas");
-  canvas.width = photo.width;
-  canvas.height = photo.height;
+  canvas.width = fixed.width;
+  canvas.height = fixed.height;
   const ctx = canvas.getContext("2d");
-  ctx.save();
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(((photo.rotation || 0) * Math.PI) / 180);
-  ctx.drawImage(img, -canvas.width / 2, -canvas.height / 2, canvas.width, canvas.height);
-  ctx.restore();
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
   const moment = meta.moments.find(m => m.id === photo.momentId) || {};
   const treatment = meta.treatments.find(t => t.id === photo.treatmentId) || {};
@@ -597,9 +658,8 @@ async function makeLabeledImage(photo, meta){
     ctx.fillText(text, x, y0 + Math.round(bandH * .50));
   });
 
-  const type = getMimeFromDataUrl(photo.dataUrl).includes("png") ? "image/png" : "image/jpeg";
-  const quality = meta.qualityMode === "light" ? .82 : .95;
-  return canvas.toDataURL(type, quality);
+  const quality = meta.qualityMode === "light" ? .84 : .96;
+  return canvas.toDataURL("image/jpeg", quality);
 }
 
 async function createPhotosZip(){
@@ -656,7 +716,7 @@ function addFooter(slide, text){
   slide.addShape("rect",{x:footerX,y:6.90,w:footerW,h:.42,fill:{color:"FFFFFF",transparency:4},line:{color:"E7DEF5"}});
   slide.addText(text,{x:footerX+.12,y:6.995,w:footerW-.24,h:.18,fontFace:"Arial",fontSize:8.6,bold:true,color:"35185E",align:"center",fit:"shrink"});
 }
-function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
+async function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   addBackground(slide, meta);
   const n = photos.length;
   const area = {x:.55,y:1.18,w:12.25,h:5.08};
@@ -664,33 +724,19 @@ function addPhotoRow(slide, photos, bottomLabels, footerText, meta){
   const gap = .17;
   const cellW = (area.w - gap*(n-1))/n;
   const imgH = area.h - labelH - .08;
-  photos.forEach((photo, i)=>{
+  const fixedPhotos = await Promise.all(photos.map(photo => makeExportImageData(photo)));
+
+  fixedPhotos.forEach((fixed, i)=>{
     const x = area.x + i*(cellW+gap);
-    const fit = fitContain(photo.width, photo.height, cellW, imgH);
+    const fit = fitContain(fixed.width, fixed.height, cellW, imgH);
     slide.addShape("rect",{x,y:area.y,w:cellW,h:imgH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
-    const rotation = photo.rotation || 0;
-    const rotated = rotation % 180 !== 0;
-
-    let drawW = fit.w;
-    let drawH = fit.h;
-    let drawX = x + fit.x;
-    let drawY = area.y + fit.y;
-
-    if(rotated){
-      const centerX = drawX + drawW / 2;
-      const centerY = drawY + drawH / 2;
-      [drawW, drawH] = [drawH, drawW];
-      drawX = centerX - drawW / 2;
-      drawY = centerY - drawH / 2;
-    }
 
     slide.addImage({
-      data:photo.dataUrl,
-      x:drawX,
-      y:drawY,
-      w:drawW,
-      h:drawH,
-      rotate:-(photo.rotation || 0)
+      data: fixed.dataUrl,
+      x: x + fit.x,
+      y: area.y + fit.y,
+      w: fit.w,
+      h: fit.h
     });
 
     slide.addShape("rect",{x,y:area.y+imgH+.06,w:cellW,h:labelH,fill:{color:"FFFFFF",transparency:0},line:{color:"E7DEF5"}});
@@ -742,7 +788,7 @@ async function createPptBlob(){
       slide = pptx.addSlide();
       const labels = group.map(p => (meta.treatments.find(t => t.id === p.treatmentId) || {}).name || "");
       const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Momento: ${moment.name}   |   Fecha: ${moment.date || ""}`;
-      addPhotoRow(slide, group, labels, footer, meta);
+      await addPhotoRow(slide, group, labels, footer, meta);
     }
   }
 
@@ -758,7 +804,7 @@ async function createPptBlob(){
       slide = pptx.addSlide();
       const labels = group.map(p => (meta.moments.find(m => m.id === p.momentId) || {}).name || "");
       const footer = `Protocolo: ${meta.protocolo}   |   Trial: ${meta.trial}   |   Localidad: ${meta.localidad}   |   Tratamiento: ${treatment.name}`;
-      addPhotoRow(slide, group, labels, footer, meta);
+      await addPhotoRow(slide, group, labels, footer, meta);
     }
   }
 
